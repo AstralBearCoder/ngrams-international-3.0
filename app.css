@@ -1,0 +1,979 @@
+/* ==========================================================================
+   15 COLORBLIND-FRIENDLY & HIGH-CONTRAST PALETTES (10 DARK, 5 LIGHT)
+   ========================================================================== */
+
+/* 1. CARBON */
+:root, [data-theme="carbon"] {
+    --bg-main: #18191c;
+    --bg-surface: #222327;
+    --bg-card: #2b2c32;
+    --text-target: #facc15;
+    --text-main: #f8fafc;
+    --text-muted: #848895;
+    --accent: #facc15;
+    --accent-dim: rgba(250, 204, 21, 0.16);
+    --error: #f43f5e;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+}
+
+/* 2. NORD */
+[data-theme="nord"] {
+    --bg-main: #242933;
+    --bg-surface: #2e3440;
+    --bg-card: #3b4252;
+    --text-target: #88c0d0;
+    --text-main: #eceff4;
+    --text-muted: #9aa5b8;
+    --accent: #81a1c1;
+    --accent-dim: rgba(136, 192, 208, 0.18);
+    --error: #bf616a;
+    --border-subtle: rgba(236, 239, 244, 0.09);
+}
+
+/* 3. PAPER */
+[data-theme="paper"] {
+    --bg-main: #f6f3eb;
+    --bg-surface: #ede6d8;
+    --bg-card: #e0d8c7;
+    --text-target: #c25e1a;
+    --text-main: #1f1d1a;
+    --text-muted: #787166;
+    --accent: #c25e1a;
+    --accent-dim: rgba(194, 94, 26, 0.16);
+    --error: #b91c1c;
+    --border-subtle: rgba(0, 0, 0, 0.1);
+}
+
+/* 4. MIDNIGHT */
+[data-theme="midnight"] {
+    --bg-main: #11111b;
+    --bg-surface: #181825;
+    --bg-card: #202030;
+    --text-target: #cba6f7;
+    --text-main: #e2e8f0;
+    --text-muted: #888da8;
+    --accent: #b4befe;
+    --accent-dim: rgba(203, 166, 247, 0.18);
+    --error: #f38ba8;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+}
+
+/* 5. EMERALD */
+[data-theme="emerald"] {
+    --bg-main: #0a0e14;
+    --bg-surface: #101622;
+    --bg-card: #162030;
+    --text-target: #34d399;
+    --text-main: #f3f4f6;
+    --text-muted: #6b7c93;
+    --accent: #10b981;
+    --accent-dim: rgba(16, 185, 129, 0.18);
+    --error: #f87171;
+    --border-subtle: rgba(16, 185, 129, 0.22);
+}
+
+/* 6. DRACULA */
+[data-theme="dracula"] {
+    --bg-main: #1e1f29;
+    --bg-surface: #282a36;
+    --bg-card: #343746;
+    --text-target: #ff79c6;
+    --text-main: #f8f8f2;
+    --text-muted: #8b9bb4;
+    --accent: #bd93f9;
+    --accent-dim: rgba(255, 121, 198, 0.18);
+    --error: #ff5555;
+    --border-subtle: rgba(255, 255, 255, 0.1);
+}
+
+/* 7. GRUVBOX */
+[data-theme="gruvbox"] {
+    --bg-main: #1d2021;
+    --bg-surface: #282828;
+    --bg-card: #3c3836;
+    --text-target: #fabd2f;
+    --text-main: #fbf1c7;
+    --text-muted: #a89984;
+    --accent: #fe8019;
+    --accent-dim: rgba(250, 189, 47, 0.18);
+    --error: #fb4934;
+    --border-subtle: rgba(235, 219, 178, 0.12);
+}
+
+/* 8. TOKYO NIGHT */
+[data-theme="tokyo-night"] {
+    --bg-main: #16161e;
+    --bg-surface: #1a1b26;
+    --bg-card: #24283b;
+    --text-target: #7aa2f7;
+    --text-main: #c0caf5;
+    --text-muted: #7982a9;
+    --accent: #bb9af7;
+    --accent-dim: rgba(122, 162, 247, 0.18);
+    --error: #f7768e;
+    --border-subtle: rgba(192, 202, 245, 0.1);
+}
+
+/* 9. SOLARIZED */
+[data-theme="solarized"] {
+    --bg-main: #00212b;
+    --bg-surface: #002b36;
+    --bg-card: #073642;
+    --text-target: #2aa198;
+    --text-main: #eee8d5;
+    --text-muted: #839496;
+    --accent: #b58900;
+    --accent-dim: rgba(42, 161, 152, 0.2);
+    --error: #dc322f;
+    --border-subtle: rgba(147, 161, 161, 0.14);
+}
+
+/* 10. CRIMSON */
+[data-theme="crimson"] {
+    --bg-main: #141115;
+    --bg-surface: #1d1820;
+    --bg-card: #29222e;
+    --text-target: #fb7185;
+    --text-main: #fafafa;
+    --text-muted: #958899;
+    --accent: #f43f5e;
+    --accent-dim: rgba(244, 63, 94, 0.2);
+    --error: #e11d48;
+    --border-subtle: rgba(244, 63, 94, 0.2);
+}
+
+/* 11. LATTE (Light) */
+[data-theme="latte"] {
+    --bg-main: #eff1f5;
+    --bg-surface: #e6e9ef;
+    --bg-card: #dce0e8;
+    --text-target: #1e66f5;
+    --text-main: #4c4f69;
+    --text-muted: #8c8fa1;
+    --accent: #1e66f5;
+    --accent-dim: rgba(30, 102, 245, 0.15);
+    --error: #e64553;
+    --border-subtle: rgba(0, 0, 0, 0.1);
+}
+
+/* 12. SOLARIZED LIGHT (Light) */
+[data-theme="solarized-light"] {
+    --bg-main: #fdf6e3;
+    --bg-surface: #eee8d5;
+    --bg-card: #e0d8c3;
+    --text-target: #268bd2;
+    --text-main: #586e75;
+    --text-muted: #93a1a1;
+    --accent: #b58900;
+    --accent-dim: rgba(181, 137, 0, 0.18);
+    --error: #dc322f;
+    --border-subtle: rgba(0, 0, 0, 0.12);
+}
+
+/* 13. NORD LIGHT (Light) */
+[data-theme="nord-light"] {
+    --bg-main: #eceff4;
+    --bg-surface: #e5e9f0;
+    --bg-card: #d8dee9;
+    --text-target: #5e81ac;
+    --text-main: #2e3440;
+    --text-muted: #7b88a1;
+    --accent: #88c0d0;
+    --accent-dim: rgba(136, 192, 208, 0.2);
+    --error: #bf616a;
+    --border-subtle: rgba(46, 52, 64, 0.1);
+}
+
+/* 14. SAKURA LIGHT (Light) */
+[data-theme="sakura"] {
+    --bg-main: #faf4f5;
+    --bg-surface: #f3e6e8;
+    --bg-card: #edd5d9;
+    --text-target: #d43f6a;
+    --text-main: #4a3b40;
+    --text-muted: #947c84;
+    --accent: #d43f6a;
+    --accent-dim: rgba(212, 63, 106, 0.15);
+    --error: #c53030;
+    --border-subtle: rgba(74, 59, 64, 0.12);
+}
+
+/* 15. CLEAN WHITE (Light) */
+[data-theme="clean-white"] {
+    --bg-main: #ffffff;
+    --bg-surface: #f4f4f5;
+    --bg-card: #e4e4e7;
+    --text-target: #09090b;
+    --text-main: #18181b;
+    --text-muted: #71717a;
+    --accent: #2563eb;
+    --accent-dim: rgba(37, 99, 235, 0.15);
+    --error: #ef4444;
+    --border-subtle: rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================================================
+   LAYOUT & RESPONSIVE STRUCTURE
+   ========================================================================== */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body,
+.app-layout,
+.app-header,
+.left-rail-sidebar,
+.sidebar-scrollable-content,
+.target-phrase-box,
+.clean-input,
+.theme-current-btn,
+.sidebar-toggle-btn,
+.pill-btn,
+.header-highlight-btn,
+.custom-modal-box,
+.drill-config-card,
+.weakness-table,
+.app-footer {
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+body {
+    background-color: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.app-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+}
+
+.header-inner-container {
+    width: 100%;
+    padding: 0 1rem;
+}
+
+.text-accent {
+    color: var(--accent) !important;
+}
+
+.border-accent {
+    border-color: var(--accent) !important;
+}
+
+/* ==========================================================================
+   COMPACT HEADER & PROMINENT CONTROLS
+   ========================================================================== */
+
+.app-header {
+    background-color: transparent;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
+
+.sidebar-toggle-btn {
+    background-color: var(--bg-surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+}
+
+.sidebar-toggle-btn:hover {
+    color: var(--text-main);
+    border-color: var(--text-target);
+}
+
+.timer {
+    font-family: 'Fira Code', monospace;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-target);
+    font-variant-numeric: tabular-nums;
+}
+
+.timer-icon {
+    color: var(--text-muted);
+}
+
+.brand-title {
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.brand-title strong {
+    color: var(--text-target);
+    font-weight: 700;
+}
+
+.header-action-pill {
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+}
+
+.header-action-pill:hover {
+    border-color: var(--text-target);
+}
+
+.header-highlight-btn {
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+    border: 1.5px solid var(--accent);
+    box-shadow: 0 0 10px var(--accent-dim);
+    border-radius: 20px;
+    padding: 0.25rem 0.85rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.header-highlight-btn:hover {
+    background-color: var(--accent-dim);
+    transform: translateY(-1px);
+    box-shadow: 0 0 14px var(--accent-dim);
+}
+
+.badge-accent-counter {
+    background-color: var(--accent);
+    color: var(--bg-main) !important;
+    font-weight: 700;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+}
+
+.theme-color-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.4rem;
+}
+
+.theme-dropdown-menu {
+    position: absolute;
+    top: 125%;
+    right: 0;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    width: 200px;
+    max-height: 380px;
+    overflow-y: auto;
+    z-index: 1050;
+    padding: 0.35rem;
+}
+
+.dropdown-header-custom {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem;
+}
+
+.theme-opt-item {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-main);
+}
+
+.theme-opt-item:hover {
+    background-color: var(--bg-card);
+}
+
+.theme-opt-item.active {
+    background-color: var(--accent-dim);
+    color: var(--text-target);
+    font-weight: 600;
+}
+
+.theme-opt-name {
+    flex-grow: 1;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.35rem;
+    font-size: 1rem;
+}
+
+.btn-icon:hover {
+    color: var(--text-target);
+}
+
+/* AUDIO DROPDOWN POPOVER */
+.audio-dropdown-wrapper {
+    position: relative;
+}
+
+.sound-popover {
+    position: absolute;
+    top: 125%;
+    right: 0;
+    background-color: var(--bg-surface) !important;
+    border: 1.5px solid var(--border-subtle) !important;
+    border-radius: 12px;
+    width: 220px;
+    z-index: 1060;
+}
+
+/* ==========================================================================
+   SWITCH SLIDER (exact centering of the knob)
+   ========================================================================== */
+
+.custom-switch {
+    padding-left: 2.6rem !important;
+    user-select: none;
+    display: flex;
+    align-items: center;
+}
+
+.custom-switch .custom-control-label {
+    cursor: pointer;
+    position: relative;
+    margin-bottom: 0;
+    line-height: 1.35;
+}
+
+/* Le track (barre de fond) */
+.custom-switch .custom-control-label::before {
+    top: 0.15rem !important;
+    left: -2.6rem !important;
+    width: 2.1rem !important;
+    height: 1.15rem !important;
+    border-radius: 0.6rem !important;
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-subtle) !important;
+    transition: background-color 0.2s ease, border-color 0.2s ease !important;
+}
+
+.custom-switch .custom-control-input:checked ~ .custom-control-label::before {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+/* The knob (moving circle), precisely centered */
+.custom-switch .custom-control-label::after {
+    top: calc(0.15rem + 2px) !important;
+    left: calc(-2.6rem + 2px) !important;
+    width: calc(1.15rem - 4px) !important;
+    height: calc(1.15rem - 4px) !important;
+    background-color: var(--text-muted) !important;
+    border-radius: 50% !important;
+    transition: transform 0.2s ease, background-color 0.2s ease !important;
+}
+
+.custom-switch .custom-control-input:checked ~ .custom-control-label::after {
+    background-color: var(--bg-main) !important;
+    transform: translateX(0.95rem) !important;
+}
+
+/* ==========================================================================
+   SIDEBAR
+   ========================================================================== */
+
+.body-split-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.left-rail-sidebar {
+    width: 260px;
+    background-color: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+    overflow: hidden;
+    z-index: 100;
+}
+
+.left-rail-sidebar.sidebar-collapsed {
+    width: 0 !important;
+    border-right: none !important;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sidebar-scrollable-content {
+    width: 260px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+}
+
+.sidebar-main-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-target);
+}
+
+.btn-close-sidebar {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.block-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.45rem;
+}
+
+.select-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.dock-select {
+    width: 100%;
+    background-color: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.35rem 1.5rem 0.35rem 0.6rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    outline: none;
+    appearance: none;
+}
+
+.dock-select:hover, .dock-select:focus {
+    border-color: var(--text-target);
+}
+
+.select-caret {
+    position: absolute;
+    right: 0.65rem;
+    pointer-events: none;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.variants-grid, .scope-grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.source-vertical-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.pill-btn {
+    background-color: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+}
+
+.pill-btn:hover {
+    color: var(--text-main);
+    border-color: var(--border-subtle);
+}
+
+.pill-btn.active {
+    background-color: var(--accent-dim);
+    color: var(--text-target);
+    border-color: var(--text-target);
+    font-weight: 700;
+}
+
+/* NO RESET CARD */
+.no-reset-toggle-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.no-reset-toggle-card.active-no-reset {
+    border-color: var(--error) !important;
+    background-color: rgba(244, 63, 94, 0.08);
+}
+
+.no-reset-hint {
+    font-size: 0.68rem;
+    line-height: 1.25;
+}
+
+.interactive-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.rule-stepper-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.35rem 0.55rem;
+}
+
+.rule-stepper-row:hover {
+    border-color: var(--text-target);
+}
+
+.rule-name {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 0;
+}
+
+.stepper-box {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.step-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    width: 22px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.step-btn:hover {
+    background-color: var(--accent-dim);
+    color: var(--text-target);
+}
+
+.stepper-box input {
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-family: 'Fira Code', monospace;
+    font-size: 0.82rem;
+    font-weight: 600;
+    width: 38px;
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+}
+
+.stepper-box input::-webkit-outer-spin-button,
+.stepper-box input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* ==========================================================================
+   DEAD-CENTER TYPING STAGE
+   ========================================================================== */
+
+.dead-center-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 1.5rem;
+    min-width: 0;
+}
+
+.exercise-inner-wrapper {
+    width: 100%;
+    max-width: 960px;
+}
+
+.lesson-meta {
+    font-size: 1rem;
+    color: var(--text-muted);
+}
+
+.lesson-counter {
+    font-family: 'Fira Code', monospace;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.target-phrase-box {
+    background-color: var(--bg-surface);
+    color: var(--text-target);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 1.8rem 2.4rem;
+    font-family: 'Fira Code', monospace;
+    font-size: 2.25rem;
+    line-height: 1.45;
+    letter-spacing: 0.03em;
+    min-height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    word-break: break-word;
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.25);
+}
+
+.input-typing-wrapper {
+    width: 100%;
+}
+
+.clean-input {
+    width: 100%;
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: 8px;
+    font-family: 'Fira Code', monospace;
+    font-size: 1.4rem;
+    text-align: center;
+    padding: 0.9rem 1.2rem;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.clean-input:focus {
+    border-color: var(--text-target);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.clean-input.input-error {
+    color: var(--error) !important;
+    border-color: var(--error) !important;
+    background-color: rgba(244, 63, 94, 0.08);
+}
+
+.metrics-row {
+    gap: 2.5rem;
+    margin-top: 1.25rem;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+}
+
+.metric-item strong {
+    color: var(--text-main);
+    font-family: 'Fira Code', monospace;
+    font-size: 1.2rem;
+    margin-left: 0.2rem;
+}
+
+/* ==========================================================================
+   MODALS, FAIBLESSES & DRILLS
+   ========================================================================== */
+
+.custom-modal-box {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 12px;
+}
+
+.clean-textarea {
+    background-color: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 8px;
+    font-family: 'Fira Code', monospace;
+}
+
+.btn-accent {
+    background-color: var(--text-target);
+    color: var(--bg-main) !important;
+    font-weight: 700;
+    border: none;
+}
+
+.btn-outline-accent {
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    background: transparent;
+}
+
+.btn-outline-accent:hover {
+    background-color: var(--accent-dim);
+    color: var(--text-target);
+}
+
+.app-footer {
+    flex-shrink: 0;
+    background: transparent;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.footer-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+kbd {
+    background-color: var(--bg-surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    font-family: 'Fira Code', monospace;
+    font-size: 0.72rem;
+    padding: 0.15rem 0.35rem;
+}
+
+.weakness-nav-pills .nav-link {
+    background-color: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    margin-right: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.weakness-nav-pills .nav-link.active {
+    background-color: var(--accent-dim);
+    color: var(--text-target);
+    border-color: var(--text-target);
+}
+
+.filter-badge-btn {
+    background-color: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.filter-badge-btn.active {
+    background-color: var(--accent-dim);
+    color: var(--text-target);
+    border-color: var(--text-target);
+}
+
+.weakness-scroll-box {
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.weakness-table {
+    color: var(--text-main);
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+
+.weakness-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 2;
+}
+
+.weakness-table td {
+    border-top: 1px solid var(--border-subtle);
+    vertical-align: middle;
+    padding: 0.45rem 0.6rem;
+}
+
+.font-code {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.95rem;
+}
+
+.drill-config-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+}
+
+.fluidity-bar-track {
+    width: 100%;
+    height: 8px;
+    background-color: var(--bg-main);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+}
+
+.fluidity-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
