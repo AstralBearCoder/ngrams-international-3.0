@@ -254,6 +254,16 @@ body {
     text-rendering: optimizeLegibility;
 }
 
+/* Allow text selection in modal dialogs and input controls */
+input,
+textarea,
+.modal-body,
+.clean-textarea,
+.clean-input,
+.font-code {
+    user-select: text;
+}
+
 .app-layout {
     display: flex;
     flex-direction: column;
@@ -371,6 +381,16 @@ body {
     padding: 0.15rem 0.4rem;
 }
 
+.badge-accent-subtle {
+    background-color: var(--accent-dim);
+    color: var(--accent) !important;
+    border: 1px solid var(--border-subtle);
+    font-weight: 600;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
 .theme-color-dot {
     width: 9px;
     height: 9px;
@@ -456,7 +476,7 @@ body {
 }
 
 /* ==========================================================================
-   SWITCH SLIDER (exact centering of the knob)
+   SWITCH SLIDER (EXACT CENTERING OF THE KNOB)
    ========================================================================== */
 
 .custom-switch {
@@ -473,7 +493,7 @@ body {
     line-height: 1.35;
 }
 
-/* Le track (barre de fond) */
+/* Track background */
 .custom-switch .custom-control-label::before {
     top: 0.15rem !important;
     left: -2.6rem !important;
@@ -490,7 +510,7 @@ body {
     border-color: var(--accent) !important;
 }
 
-/* The knob (moving circle), precisely centered */
+/* Knob (moving indicator circle), precisely centered */
 .custom-switch .custom-control-label::after {
     top: calc(0.15rem + 2px) !important;
     left: calc(-2.6rem + 2px) !important;
@@ -761,6 +781,7 @@ body {
     font-size: 1rem;
     font-weight: 500;
     color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
 .target-phrase-box {
@@ -796,7 +817,7 @@ body {
     text-align: center;
     padding: 0.9rem 1.2rem;
     outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.15s ease, background-color 0.15s ease;
 }
 
 .clean-input:focus {
@@ -822,10 +843,11 @@ body {
     font-family: 'Fira Code', monospace;
     font-size: 1.2rem;
     margin-left: 0.2rem;
+    font-variant-numeric: tabular-nums;
 }
 
 /* ==========================================================================
-   MODALS, FAIBLESSES & DRILLS
+   MODALS, WEAKNESSES & DRILLS
    ========================================================================== */
 
 .custom-modal-box {
@@ -968,6 +990,32 @@ kbd {
     height: 100%;
     border-radius: 4px;
     transition: width 0.3s ease;
+}
+
+/* Subtle themed scrollbar */
+.theme-dropdown-menu::-webkit-scrollbar,
+.sidebar-scrollable-content::-webkit-scrollbar,
+.weakness-scroll-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+.theme-dropdown-menu::-webkit-scrollbar-track,
+.sidebar-scrollable-content::-webkit-scrollbar-track,
+.weakness-scroll-box::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.theme-dropdown-menu::-webkit-scrollbar-thumb,
+.sidebar-scrollable-content::-webkit-scrollbar-thumb,
+.weakness-scroll-box::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 3px;
+}
+
+.theme-dropdown-menu::-webkit-scrollbar-thumb:hover,
+.sidebar-scrollable-content::-webkit-scrollbar-thumb:hover,
+.weakness-scroll-box::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

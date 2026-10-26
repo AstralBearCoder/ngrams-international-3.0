@@ -1,9 +1,12 @@
 /**
  * ngramInternational — Core Typing & Statistical Weakness Engine
- * v5.5 Deterministic Position-Based Engine:
- * - Precomputed word ranges: every word of a phrase is tracked exactly once, even with fast rollover.
- * - Typos and hesitations are kept in weakness detection even when Min Accuracy is 100%.
- * - Weakness statistics are kept per profile and per language, as a sliding window of the last 50 samples.
+ * v5.8 Clean Precision Engine:
+ * - Deterministic word ranges with multi-word burst boundary handling.
+ * - Robust weakness tracking across sliding windows (last 50 occurrences).
+ * - Cumulative staging across restarts and retries preserved for natural difficulty weighting.
+ * - Precision Ladder drills: Strict elision preservation (d', l', c', qu') and terminal punct validation.
+ * - Lightweight localStorage footprint with automated runtime phrase pruning.
+ * - Race-condition guard preventing drill double-launch glitches.
  */
 
 const LANGUAGE_ANCHORS = Object.freeze({
@@ -17,16 +20,19 @@ const LANGUAGE_ANCHORS = Object.freeze({
     rus: Object.freeze(['не', 'что', 'он', 'на', 'со', 'как', 'то', 'все', 'она', 'так', 'его', 'но', 'да', 'ты', 'же', 'бы', 'по', 'за', 'из', 'от'])
 });
 
-// Classes Unicode complètes. \p{P} couvre exactement la ponctuation générée par le script Python.
 const CAPS_REGEX = /[\p{Lu}\p{Lt}]/u;
 const PUNCT_REGEX = /\p{P}/u;
 
-const MAX_SCOPE = 200;              // Plus grand scope "Top N" dans l'UI
-const NGRAM_POOL_SIZE = 200;        // Nombre de lignes chargées depuis chaque fichier n-gram
-const MAX_SAMPLES_PER_NGRAM = 50;   // Fenêtre glissante d'échantillons d'erreurs
-const MIN_CONFIRMED_SAMPLES = 3;    // Nombre minimum d'occurrences pour confirmer une faiblesse
-const MAX_PHRASE_PARAM = 1000;      // Limite haute de répétition / combinaison
-const MAX_CHARS_PER_KEY_EVENT = 5;  // Protection anti-collage de texte (paste guard)
+// Terminal clause punctuation only. Apostrophes (') and hyphens (-) are excluded intentionally.
+const TERMINAL_CLAUSE_PUNCT = /^[,.:;?!]$/u;
+const TERMINAL_CLAUSE_REGEX = /[,.:;?!]+$/u;
+
+const MAX_SCOPE = 200;              // Highest "Top N" scope in the UI
+const NGRAM_POOL_SIZE = 200;        // Pool size loaded from n-gram TSV files
+const MAX_SAMPLES_PER_NGRAM = 50;   // Sliding window sample limit for error analytics
+const MIN_CONFIRMED_SAMPLES = 3;    // Minimum samples required to confirm a weakness
+const MAX_PHRASE_PARAM = 1000;      // Hard boundary for combinations/repetitions
+const MAX_CHARS_PER_KEY_EVENT = 5;  // Protection guard against pasted input chunks
 
 const safeStorage = {
     get(key, fallback = null) {
@@ -146,24 +152,32 @@ function unpackNgramEntry(ngram, obj) {
 
     if (Array.isArray(obj.samples)) {
         for (const s of obj.samples) {
-            if (s && Number.isFinite(s.time) && s.time >= 0) samples.push({ time: s.time, hadError: !!s.hadError });
+            if (s && Number.isFinite(s.time) && s.time >= 0) {
+                samples.push({ time: s.time, hadError: !!s.hadError });
+            }
         }
     } else if (Array.isArray(obj.t)) {
         const flags = typeof obj.e === 'string' ? obj.e : '';
         for (let i = 0; i < obj.t.length; i++) {
             const time = obj.t[i];
-            if (Number.isFinite(time) && time >= 0) samples.push({ time, hadError: flags.charAt(i) === '1' });
+            if (Number.isFinite(time) && time >= 0) {
+                samples.push({ time, hadError: flags.charAt(i) === '1' });
+            }
         }
     } else {
         const count = Math.min(MAX_SAMPLES_PER_NGRAM, obj.count || 1);
         const avg = obj.count ? (obj.totalTime / obj.count) : 250;
         const errCount = Math.min(count, obj.errors || 0);
         if (Number.isFinite(avg) && avg >= 0) {
-            for (let s = 0; s < count; s++) samples.push({ time: avg, hadError: s < errCount });
+            for (let s = 0; s < count; s++) {
+                samples.push({ time: avg, hadError: s < errCount });
+            }
         }
     }
 
-    if (samples.length > MAX_SAMPLES_PER_NGRAM) samples = samples.slice(-MAX_SAMPLES_PER_NGRAM);
+    if (samples.length > MAX_SAMPLES_PER_NGRAM) {
+        samples = samples.slice(-MAX_SAMPLES_PER_NGRAM);
+    }
     if (!samples.length || len < 2 || len > 4) return null;
     return { len, samples };
 }
@@ -205,12 +219,16 @@ function serializeWeakStats(stats) {
     return { fmt: 2, meta: stats.meta, ngrams };
 }
 
+// =============================================================================
+// VUE APPLICATION CONFIGURATION
+// =============================================================================
+
 const ngramTypeConfig = {
     el: '#app',
 
     data() {
         return {
-            VERSION: 5.5,
+            VERSION: 5.8,
 
             showThemeMenu: false,
             showAudioMenu: false,
@@ -281,8 +299,8 @@ const ngramTypeConfig = {
             data: {
                 sidebarOpen: true,
                 source: 'bigrams',
-                theme: 'emerald',               // Emerald défini par défaut
-                selectedCorpus: 'Ngram_English', // English défini par défaut
+                theme: 'emerald',
+                selectedCorpus: 'Ngram_English',
                 includePunctuation: true,
                 includeUppercase: true,
                 noResetMode: false,
@@ -412,7 +430,7 @@ const ngramTypeConfig = {
         drillModeDescription() {
             if (this.drillMode === 'classic') return 'Direct repetitive drill of your slowest n-grams.';
             if (this.drillMode === 'sandwich') return `Wraps each weak n-gram with high-frequency ${this.readableCorpusName} anchor words.`;
-            return 'Integrates each weak n-gram into real dictionary words.';
+            return 'Step-by-step ladder progression expanding each n-gram into real words.';
         }
     },
 
@@ -427,9 +445,11 @@ const ngramTypeConfig = {
             this.loadLanguageWeakStats();
             this.resetCurrentPhraseMetrics();
         },
-        async 'data.source'() {
+        async 'data.source'(newSource) {
+            if (this._suppressSourceWatcher) return;
+
             this.currentTestStaging = {};
-            if (this.data.source === 'custom_words') {
+            if (newSource === 'custom_words') {
                 this.refreshPhrases();
             } else {
                 await this.reloadNgramData();
@@ -442,7 +462,9 @@ const ngramTypeConfig = {
         'data.soundPassedThresholdEnabled'() { this.save(); },
         'data.soundFailedThresholdEnabled'() { this.save(); },
         custom_words() {
-            this.refreshPhrasesAndCurrentMetrics();
+            if (!this._suppressSourceWatcher) {
+                this.refreshPhrasesAndCurrentMetrics();
+            }
         }
     },
 
@@ -456,6 +478,7 @@ const ngramTypeConfig = {
         this._fullWordList = { path: null, pending: null };
         this._drillStarting = false;
         this._storageWarningShown = false;
+        this._suppressSourceWatcher = false;
         this.custom_words = safeStorage.get('ngram_custom_words_backup', []);
     },
 
@@ -807,7 +830,19 @@ const ngramTypeConfig = {
         },
 
         save() {
-            safeStorage.set('ngramTypeAppdata', this.data);
+            try {
+                // Prune large runtime-generated phrase arrays before serializing to localStorage
+                const dataToSave = { ...this.data };
+                for (const src of ['bigrams', 'trigrams', 'tetragrams', 'words', 'custom_words']) {
+                    if (dataToSave[src]) {
+                        const { phrases, ...rest } = dataToSave[src];
+                        dataToSave[src] = rest;
+                    }
+                }
+                safeStorage.set('ngramTypeAppdata', dataToSave);
+            } catch (e) {
+                console.warn('[Storage] Failed to save appdata:', e);
+            }
         },
 
         load(savedData) {
@@ -872,6 +907,20 @@ const ngramTypeConfig = {
             if (!ds) return;
             ds.combination = sanitizePositiveInt(ds.combination);
             ds.repetition = sanitizePositiveInt(ds.repetition);
+
+            // Safeguard: Preserve existing active drill phrases when in custom_words mode
+            if (this.data.source === 'custom_words' && (!this.custom_words || !this.custom_words.length)) {
+                if (ds.phrases && ds.phrases.length) {
+                    ds.phrasesCurrentIndex = 0;
+                    this.expectedPhrase = ds.phrases[0] || '';
+                    if (this.expectedPhrase) {
+                        this.buildPhraseWordRanges(this.expectedPhrase);
+                    }
+                    this.save();
+                    return;
+                }
+            }
+
             ds.phrases = this.generatePhrases(ds.combination, ds.repetition);
             this.expectedPhrase = ds.phrases?.[0] ?? '';
             ds.phrasesCurrentIndex = 0;
@@ -967,28 +1016,26 @@ const ngramTypeConfig = {
                 this.playSound(this.correctLetterSound);
             }
 
+            // Deterministic catch-up loop: Handles multi-character bursts or rapid typing
             const ranges = this.phraseWordRanges;
-            if (this.currentWordIdx < ranges.length) {
+            while (this.currentWordIdx < ranges.length && typedLen >= ranges[this.currentWordIdx].boundary) {
                 const targetRange = ranges[this.currentWordIdx];
+                const duration = Math.round(now - this.currentWordStartTime);
+                const hadError = (this.currentWordErrors > 0);
 
-                if (typedLen >= targetRange.boundary) {
-                    const duration = Math.round(now - this.currentWordStartTime);
-                    const hadError = (this.currentWordErrors > 0);
+                this.recordDeterministicWord(targetRange.word, duration, hadError);
 
-                    this.recordDeterministicWord(targetRange.word, duration, hadError);
-
-                    this.currentWordIdx++;
-                    this.currentWordStartTime = now;
-                    this.currentWordErrors = 0;
-                }
+                this.currentWordIdx++;
+                this.currentWordStartTime = now;
+                this.currentWordErrors = 0;
             }
 
             if (typed === expected) {
-                const elapsedSec = (now - this.startTime) / 1000;
+                const elapsedSec = Math.max(0.2, (now - this.startTime) / 1000);
                 const totalHits = this.hitsCorrect + this.hitsWrong;
-                this.rawWPM = Math.round(((totalHits / 5) / (elapsedSec || 1)) * 60);
+                this.rawWPM = Math.round(((totalHits / 5) / elapsedSec) * 60);
                 const exactAccuracy = (this.hitsCorrect / (totalHits || 1)) * 100;
-                this.accuracy = this.hitsWrong === 0 ? 100 : Math.min(99, Math.round(exactAccuracy));
+                this.accuracy = this.hitsWrong === 0 ? 100 : Math.min(99, Math.max(0, Math.round(exactAccuracy)));
 
                 const dataSource = this.dataSource;
                 const passedThreshold = (this.rawWPM >= dataSource.minimumWPM && this.accuracy >= dataSource.minimumAccuracy);
@@ -1048,6 +1095,7 @@ const ngramTypeConfig = {
         },
 
         resetCurrentPhraseMetrics() {
+            // Note: currentTestStaging is preserved to maintain cumulative retry weighting
             this.hitsCorrect = 0;
             this.hitsWrong = 0;
             this.typedPhrase = '';
@@ -1138,18 +1186,21 @@ const ngramTypeConfig = {
                     }
 
                     const avg = sumTime / count;
-                    const errRate = errorCount / count;
-                    const score = Math.round(avg * (1 + (errRate * 2.5)));
+                    const rawErrRate = errorCount / count;
+
+                    // Empirical Laplace smoothing prevents low-sample flukes from dominating ranking
+                    const smoothedErrRate = errorCount / (count + 2);
+                    const score = Math.round(avg * (1 + (smoothedErrRate * 2.5)));
 
                     const barPct = Math.min(100, Math.max(15, Math.round((score / 550) * 100)));
                     let barColor = '#10b981';
-                    if (score > 220 || errRate > 0.10) barColor = '#f59e0b';
-                    if (score > 340 || errRate > 0.25) barColor = '#ef4444';
+                    if (score > 220 || rawErrRate > 0.10) barColor = '#f59e0b';
+                    if (score > 340 || rawErrRate > 0.25) barColor = '#ef4444';
 
                     list.push({
                         ngram,
                         avgTime: Math.round(avg),
-                        errorRate: Math.round(errRate * 100),
+                        errorRate: Math.round(rawErrRate * 100),
                         errors: errorCount,
                         count,
                         score,
@@ -1205,90 +1256,181 @@ const ngramTypeConfig = {
                 if (!list.length) return;
 
                 const selected = list.slice(0, this.drillScope).map(item => item.ngram);
-                const drillWords = [];
+                const ds = this.data[this.data.source];
+                const comb = Math.max(1, ds.combination || 2);
+                const rep = Math.max(1, ds.repetition || 3);
+                const generatedPhrases = [];
 
                 if (this.drillMode === 'sandwich') {
+                    // SANDWICH DRILL: Strict Anchor -> Target Ngram -> Anchor rhythm
                     const anchors = this.getLanguageAnchorWords();
-                    const aLen = anchors.length;
-                    for (let i = 0; i < selected.length; i++) {
-                        const ng = selected[i];
-                        const hasCaps = CAPS_REGEX.test(ng);
-                        const anchor = anchors[i % aLen];
-                        drillWords.push(ng, hasCaps ? anchor.toUpperCase() : anchor.toLowerCase());
+                    let anchorIdx = 0;
+
+                    for (let i = 0; i < selected.length; i += comb) {
+                        const chunk = selected.slice(i, i + comb);
+                        const unitTokens = [];
+
+                        for (const ng of chunk) {
+                            const anchor = anchors[anchorIdx % anchors.length];
+                            anchorIdx++;
+                            const hasCaps = CAPS_REGEX.test(ng);
+                            unitTokens.push(hasCaps ? anchor.toUpperCase() : anchor.toLowerCase());
+                            unitTokens.push(ng);
+                        }
+
+                        // Closing anchor ensures symmetric rhythm wrapping
+                        const closingAnchor = anchors[anchorIdx % anchors.length];
+                        anchorIdx++;
+                        unitTokens.push(closingAnchor);
+
+                        const singleUnit = unitTokens.join(' ');
+                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
+                        generatedPhrases.push(fullPhrase);
                     }
+
                 } else if (this.drillMode === 'ladder') {
+                    // LADDER DRILL: Progressive lexical ladder (Target -> Short -> Medium -> Long)
                     const basePath = this.getBasePath();
                     const wordPool = await this.loadFullWordList(basePath);
                     if (basePath !== this.getBasePath()) return;
-                    drillWords.push(...this.buildLadderWords(selected, wordPool.length ? wordPool : this.getLanguageAnchorWords()));
+
+                    const ladderSets = this.buildLadderWords(selected, wordPool);
+
+                    for (let i = 0; i < ladderSets.length; i += comb) {
+                        const chunk = ladderSets.slice(i, i + comb);
+                        const combinedLadder = chunk.flat();
+                        const singleUnit = combinedLadder.join(' ');
+                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
+                        generatedPhrases.push(fullPhrase);
+                    }
+
                 } else {
-                    drillWords.push(...selected);
+                    // CLASSIC DRILL: Direct repetition of target n-grams
+                    for (let i = 0; i < selected.length; i += comb) {
+                        const chunk = selected.slice(i, i + comb);
+                        const singleUnit = chunk.join(' ');
+                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
+                        generatedPhrases.push(fullPhrase);
+                    }
                 }
+
+                // Lock watcher to prevent race condition when transitioning to custom_words
+                this._suppressSourceWatcher = true;
+                this.data.source = 'custom_words';
+
+                this.data.custom_words.phrases = generatedPhrases;
+                this.data.custom_words.phrasesCurrentIndex = 0;
+                this.expectedPhrase = generatedPhrases[0] || '';
+                if (this.expectedPhrase) {
+                    this.buildPhraseWordRanges(this.expectedPhrase);
+                }
+                this.resetCurrentPhraseMetrics();
+                this.pauseTimer();
+                this.save();
 
                 $('#weakness-modal').modal('hide');
 
-                this.data.source = 'custom_words';
-                this.custom_words = drillWords;
-                this.refreshPhrasesAndCurrentMetrics();
+                this.$nextTick(() => {
+                    this._suppressSourceWatcher = false;
+                    if (this.$inputEl) {
+                        this.$inputEl.focus();
+                    }
+                });
             } finally {
                 this._drillStarting = false;
             }
         },
 
         buildLadderWords(selected, wordPool) {
-            const anchors = this.getLanguageAnchorWords();
-            const wanted = new Set(selected);
-            const lengths = new Set(selected.map(ng => ng.length));
-            const targetCaps = new Map();
-            wanted.forEach(ng => targetCaps.set(ng, CAPS_REGEX.test(ng)));
-            const best = new Map();
-
-            for (let i = 0; i < wordPool.length; i++) {
+            // Clean dictionary pool: top 4,000 words only, zero digits allowed
+            const cleanPool = [];
+            const maxCandidates = Math.min(4000, wordPool.length);
+            for (let i = 0; i < maxCandidates; i++) {
                 const w = wordPool[i];
-                if (!w || w.length < 3 || w.length > 10) continue;
-                let wordHasCaps = null;
+                if (!w || /\d/.test(w) || w.length < 2) continue;
+                cleanPool.push(w);
+            }
 
-                for (const len of lengths) {
-                    for (let p = 0; p + len <= w.length; p++) {
-                        const sub = w.substring(p, p + len);
-                        if (!wanted.has(sub) || sub === w) continue;
+            const ladders = [];
 
-                        if (!targetCaps.get(sub)) {
-                            if (wordHasCaps === null) wordHasCaps = CAPS_REGEX.test(w);
-                            if (wordHasCaps) continue;
-                        }
+            for (const ng of selected) {
+                const ladder = [ng]; // Step 0: The n-gram itself
 
-                        let entry = best.get(sub);
-                        if (!entry) {
-                            entry = [];
-                            best.set(sub, entry);
+                // Only treat as attached punctuation if it's true clause-ending punctuation (e.g. "e," or "t.")
+                // Apostrophes (') and hyphens (-) are contractions / elisions and belong inside real words (e.g., d'un, l'Union).
+                const lastChar = ng.slice(-1);
+                const hasTerminalPunct = TERMINAL_CLAUSE_PUNCT.test(lastChar);
+
+                let rootNg = ng;
+                let attachedPunct = '';
+
+                if (hasTerminalPunct) {
+                    attachedPunct = lastChar;
+                    rootNg = ng.slice(0, -1);
+                }
+
+                const rootLower = rootNg.toLowerCase();
+                const ngLower = ng.toLowerCase();
+
+                let shortWord = null;
+                let medWord = null;
+                let longWord = null;
+
+                for (const candidate of cleanPool) {
+                    // Strip terminal clause punctuation from candidate word if already present in corpus
+                    const cleanCandidate = candidate.replace(TERMINAL_CLAUSE_REGEX, '');
+                    const cLower = cleanCandidate.toLowerCase();
+
+                    // Candidate must not be identical to the target n-gram
+                    if (cLower === rootLower || cLower === ngLower) continue;
+
+                    let matches = false;
+                    let wordToAdd = '';
+
+                    if (hasTerminalPunct) {
+                        // For n-grams ending with clause punctuation (e.g., "e," or "t."):
+                        // The candidate word MUST end with rootNg so that candidate + attachedPunct actually contains ng!
+                        if (cLower.endsWith(rootLower)) {
+                            matches = true;
+                            wordToAdd = cleanCandidate + attachedPunct;
                         }
-                        if (entry.includes(w)) continue;
-                        if (entry.length === 2) {
-                            if (w.length >= entry[1].length) continue;
-                            entry.pop();
+                    } else {
+                        // For standard n-grams (e.g., "d'", "th", "'u", "tion"):
+                        // The candidate word must contain the exact n-gram!
+                        if (cLower.includes(ngLower)) {
+                            matches = true;
+                            wordToAdd = cleanCandidate;
                         }
-                        let pos = entry.length;
-                        while (pos > 0 && entry[pos - 1].length > w.length) pos--;
-                        entry.splice(pos, 0, w);
                     }
+
+                    if (!matches) continue;
+
+                    const len = cleanCandidate.length;
+
+                    // Step 1: Short word (3-4 characters)
+                    if (!shortWord && len >= 3 && len <= 4) {
+                        shortWord = wordToAdd;
+                    }
+                    // Step 2: Medium word (5-6 characters)
+                    else if (!medWord && len >= 5 && len <= 6) {
+                        medWord = wordToAdd;
+                    }
+                    // Step 3: Long word (7-9 characters)
+                    else if (!longWord && len >= 7 && len <= 9) {
+                        longWord = wordToAdd;
+                    }
+
+                    if (shortWord && medWord && longWord) break;
                 }
+
+                if (shortWord) ladder.push(shortWord);
+                if (medWord) ladder.push(medWord);
+                if (longWord) ladder.push(longWord);
+
+                ladders.push(ladder);
             }
 
-            const drillWords = [];
-            for (let j = 0; j < selected.length; j++) {
-                const ng = selected[j];
-                drillWords.push(ng);
-
-                const matches = best.get(ng);
-                if (matches && matches.length) {
-                    drillWords.push(...matches);
-                } else {
-                    const fallback = anchors[j % Math.min(5, anchors.length)];
-                    drillWords.push(targetCaps.get(ng) ? fallback.toUpperCase() : fallback.toLowerCase());
-                }
-            }
-            return drillWords;
+            return ladders;
         },
 
         customWordsModalShow() {
