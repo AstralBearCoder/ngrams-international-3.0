@@ -1,0 +1,65 @@
+CORPUS SOURCES
+
+-------
+ENGLISH
+
+eng_news.txt       | https://wortschatz.uni-leipzig.de/en/download/eng [News/2025/1M/Sentences]
+eng_web.txt        | https://wortschatz.uni-leipzig.de/en/download/eng [Web-Public/2018/UK/1M/Sentences]
+eng_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/eng [Wikipedia/2016/1M/Sentences]
+eng_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [english/v2018]
+
+-------
+FRENCH
+
+fra_news.txt       | https://wortschatz.uni-leipzig.de/en/download/fra [News/2024/1M/Sentences]
+fra_web.txt        | https://wortschatz.uni-leipzig.de/en/download/fra [Web/2017/EU/1M/Sentences]
+fra_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/fra [Wikipedia/2021/1M/Sentences]
+fra_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [french/v2018]
+
+-------
+GERMAN
+
+deu_news.txt       | https://wortschatz.uni-leipzig.de/en/download/deu [News/2025/1M/Sentences]
+deu_web.txt        | https://wortschatz.uni-leipzig.de/en/download/deu [Web/2021/Germany/1M/Sentences]
+deu_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/deu [Wikipedia/2021/1M/Sentences]
+deu_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [german/v2018]
+
+-------
+ITALIAN
+
+ita_news.txt       | https://wortschatz.uni-leipzig.de/en/download/ita [News/2024/1M/Sentences]
+ita_web.txt        | https://wortschatz.uni-leipzig.de/en/download/ita [Web-Public/2019/Italian/1M/Sentences]
+ita_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/ita [Wikipedia/2021/1M/Sentences]
+ita_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [italian/v2018]
+
+-------
+POLISH
+
+pol_news.txt       | https://wortschatz.uni-leipzig.de/en/download/pol [News/2024/1M/Sentences]
+pol_web.txt        | https://wortschatz.uni-leipzig.de/en/download/pol [Web/com/2018/1M/Sentences]
+pol_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/pol [Wikipedia/2021/1M/Sentences]
+pol_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [polish/v2018]
+
+-------
+PORTUGUESE
+
+por_news.txt       | https://wortschatz.uni-leipzig.de/en/download/por [News/2024/1M/Sentences]
+por_web.txt        | https://wortschatz.uni-leipzig.de/en/download/por [Web/2015/Portugal/1M/Sentences]
+por_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/por [Wikipedia/2021/1M/Sentences]
+por_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [portuguese/v2018]
+
+-------
+RUSSIAN
+
+rus_news.txt       | https://wortschatz.uni-leipzig.de/en/download/rus [News/2024/1M/Sentences]
+rus_web.txt        | https://wortschatz.uni-leipzig.de/en/download/rus [Web-Public/2019/Russia/1M/Sentences]
+rus_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/rus [Wikipedia/2021/1M/Sentences]
+rus_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [russian/v2018]
+
+-------
+SPANISH
+
+spa_news.txt       | https://wortschatz.uni-leipzig.de/en/download/spa [News/2024/1M/Sentences]
+spa_web.txt        | https://wortschatz.uni-leipzig.de/en/download/spa [Web/2016/General/1M/Sentences]
+spa_wikipedia.txt  | https://wortschatz.uni-leipzig.de/en/download/spa [Wikipedia/2021/1M/Sentences]
+spa_subtitles.txt  | https://opus.nlpl.eu/datasets/OpenSubtitles       [spanish/v2018]
