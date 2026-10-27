@@ -34,12 +34,12 @@
 
 | 1. Main Typing Stage | 2. Weakness Detection & Priority Spectrum |
 | :---: | :---: |
-| ![Main Typing Stage](media/image/Sh_Main.png) | ![Weakness Detection Table](media/image/Sh_Weakness.png) |
+| ![Main Typing Stage](media/images/Sh_Main.png) | ![Weakness Detection Table](media/images/Sh_Weakness.png) |
 | *Dead-center stage with real-time feedback & WPM tracking* | *Personalized priority scoring & dual latency/WPM metrics* |
 
 | 3. All-Time Evolution & Progression SVG | 4. Targeted Drill Configurator |
 | :---: | :---: |
-| ![Evolution Chart](media/image/Sh_Evolution.png) | ![Targeted Drill Configurator](media/image/Sh_Drill.png) |
+| ![Evolution Chart](media/images/Sh_Evolution.png) | ![Targeted Drill Configurator](media/images/Sh_Drill.png) |
 | *5-sample checkpoints with Recent 100 & All-Time overview* | *Focused bottleneck training: Classic, Sandwich & Ladder* |
 
 ---
