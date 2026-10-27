@@ -7,10 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Pure Web](https://img.shields.io/badge/dependencies-zero%20npm-88c0d0?style=for-the-badge&logo=javascript&logoColor=white)](https://github.com/AstralBearCoder/ngrams-international-3.0)
 
-**ngramInternational** is an evolution of Ranel Padon's open-source [ngram-type](https://github.com/ranelpadon/ngram-type). The original offered exercises on sub-word combinations (bigrams, trigrams, tetragrams). This project adds weakness tracking, personalized scoring, progression charts, targeted drills and 8 languages.
+![Main Typing Stage](media/video/NgramIntl.gif)
 
----
-![Main Typing Stage](media/videos/NgramIntl.gif)
+**ngramInternational** is an evolution of Ranel Padon's open-source [ngram-type](https://github.com/ranelpadon/ngram-type). The original offered exercises on sub-word combinations (bigrams, trigrams, tetragrams). This project adds weakness tracking, personalized scoring, progression charts, targeted drills and 8 languages.
 
 ## At a Glance
 
