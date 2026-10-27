@@ -10,6 +10,7 @@
 **ngramInternational** is an evolution of Ranel Padon's open-source [ngram-type](https://github.com/ranelpadon/ngram-type). The original offered exercises on sub-word combinations (bigrams, trigrams, tetragrams). This project adds weakness tracking, personalized scoring, progression charts, targeted drills and 8 languages.
 
 ---
+![Main Typing Stage](media/videos/NgramIntl.gif)
 
 ## At a Glance
 
@@ -33,12 +34,12 @@
 
 | 1. Main Typing Stage | 2. Weakness Detection & Priority Spectrum |
 | :---: | :---: |
-| ![Main Typing Stage](screen/Sh_Main.png) | ![Weakness Detection Table](screen/Sh_Weakness.png) |
+| ![Main Typing Stage](media/image/Sh_Main.png) | ![Weakness Detection Table](media/image/Sh_Weakness.png) |
 | *Dead-center stage with real-time feedback & WPM tracking* | *Personalized priority scoring & dual latency/WPM metrics* |
 
 | 3. All-Time Evolution & Progression SVG | 4. Targeted Drill Configurator |
 | :---: | :---: |
-| ![Evolution Chart](screen/Sh_Evolution.png) | ![Targeted Drill Configurator](screen/Sh_Drill.png) |
+| ![Evolution Chart](media/image/Sh_Evolution.png) | ![Targeted Drill Configurator](media/image/Sh_Drill.png) |
 | *5-sample checkpoints with Recent 100 & All-Time overview* | *Focused bottleneck training: Classic, Sandwich & Ladder* |
 
 ---
