@@ -1,12 +1,11 @@
 /**
- * ngramInternational — Core Typing & Statistical Weakness Engine
- * v5.8 Clean Precision Engine:
+ * ngramInternational — Core Typing, Statistical Weakness & Evolution Engine
+ * v6.1 Relative Baseline & Precision Evolution Engine:
  * - Deterministic word ranges with multi-word burst boundary handling.
- * - Robust weakness tracking across sliding windows (last 50 occurrences).
- * - Cumulative staging across restarts and retries preserved for natural difficulty weighting.
- * - Precision Ladder drills: Strict elision preservation (d', l', c', qu') and terminal punct validation.
- * - Lightweight localStorage footprint with automated runtime phrase pruning.
- * - Race-condition guard preventing drill double-launch glitches.
+ * - Personalized baseline calculation (Baseline-relative difficulty scoring).
+ * - Calibrated evolution tracking in 5-sample checkpoints with dual view modes (Recent 100 vs All-Time).
+ * - Full modal-driven targeted drill configurator with dedicated Caps & Punctuation switches.
+ * - Dual latency & WPM equivalent rendering.
  */
 
 const LANGUAGE_ANCHORS = Object.freeze({
@@ -29,8 +28,11 @@ const TERMINAL_CLAUSE_REGEX = /[,.:;?!]+$/u;
 
 const MAX_SCOPE = 200;              // Highest "Top N" scope in the UI
 const NGRAM_POOL_SIZE = 200;        // Pool size loaded from n-gram TSV files
-const MAX_SAMPLES_PER_NGRAM = 50;   // Sliding window sample limit for error analytics
-const MIN_CONFIRMED_SAMPLES = 3;    // Minimum samples required to confirm a weakness
+const CHUNK_SIZE = 5;               // Granular 5-occurrence checkpoints for all-time evolution
+const MIN_CONFIRMED_SAMPLES = 5;    // Minimum samples required to confirm a weakness
+const MIN_ERROR_SORT_SAMPLES = 20;  // Threshold to avoid fluke 100% error rankings
+const MAX_HISTORY_BLOCKS = 350;     // Maximum stored checkpoints per n-gram (~1,750 occurrences)
+const MAX_CHART_POINTS = 40;        // Visual limit to preserve SVG clarity
 const MAX_PHRASE_PARAM = 1000;      // Hard boundary for combinations/repetitions
 const MAX_CHARS_PER_KEY_EVENT = 5;  // Protection guard against pasted input chunks
 
@@ -99,7 +101,7 @@ function parseTokenLine(rawLine, expectedLength) {
     if (!rawLine) return null;
     const tabIdx = rawLine.indexOf('\t');
     let token = tabIdx === -1 ? rawLine : rawLine.substring(0, tabIdx);
-    token = token.replace(/[\r\n]/g, '');
+    token = token.replace(/[\r\n]/g, '').trim();
     if (!token || /\s/.test(token) || token.includes('_')) return null;
     if (expectedLength !== null && token.length !== expectedLength) return null;
     return token;
@@ -149,7 +151,34 @@ function unpackNgramEntry(ngram, obj) {
     if (!obj || typeof obj !== 'object') return null;
     const len = Number.isInteger(obj.len) ? obj.len : ngram.length;
     let samples = [];
+    const history = [];
 
+    // 1. Unpack existing history blocks
+    if (Array.isArray(obj.history)) {
+        for (const h of obj.history) {
+            if (h && Number.isFinite(h.avgTime)) {
+                history.push({
+                    count: Number(h.count) || CHUNK_SIZE,
+                    avgTime: Math.round(h.avgTime),
+                    errorCount: Number(h.errorCount) || 0,
+                    timestamp: Number(h.timestamp) || Date.now()
+                });
+            }
+        }
+    } else if (Array.isArray(obj.h)) {
+        for (const item of obj.h) {
+            if (Array.isArray(item) && Number.isFinite(item[0])) {
+                history.push({
+                    count: Number(item[3]) || CHUNK_SIZE,
+                    avgTime: Math.round(item[0]),
+                    errorCount: Number(item[1]) || 0,
+                    timestamp: Number(item[2]) || Date.now()
+                });
+            }
+        }
+    }
+
+    // 2. Unpack recent raw samples
     if (Array.isArray(obj.samples)) {
         for (const s of obj.samples) {
             if (s && Number.isFinite(s.time) && s.time >= 0) {
@@ -164,22 +193,31 @@ function unpackNgramEntry(ngram, obj) {
                 samples.push({ time, hadError: flags.charAt(i) === '1' });
             }
         }
-    } else {
-        const count = Math.min(MAX_SAMPLES_PER_NGRAM, obj.count || 1);
-        const avg = obj.count ? (obj.totalTime / obj.count) : 250;
-        const errCount = Math.min(count, obj.errors || 0);
-        if (Number.isFinite(avg) && avg >= 0) {
-            for (let s = 0; s < count; s++) {
-                samples.push({ time: avg, hadError: s < errCount });
+    }
+
+    // 3. Checkpoint into 5-occurrence historical chunks
+    if (samples.length >= CHUNK_SIZE) {
+        while (samples.length >= CHUNK_SIZE) {
+            const chunk = samples.splice(0, CHUNK_SIZE);
+            let sumT = 0;
+            let errs = 0;
+            for (let k = 0; k < CHUNK_SIZE; k++) {
+                sumT += chunk[k].time;
+                if (chunk[k].hadError) errs++;
             }
+            history.push({
+                count: CHUNK_SIZE,
+                avgTime: Math.round(sumT / CHUNK_SIZE),
+                errorCount: errs,
+                timestamp: Date.now()
+            });
         }
     }
 
-    if (samples.length > MAX_SAMPLES_PER_NGRAM) {
-        samples = samples.slice(-MAX_SAMPLES_PER_NGRAM);
-    }
-    if (!samples.length || len < 2 || len > 4) return null;
-    return { len, samples };
+    if (!samples.length && !history.length) return null;
+    if (len < 2 || len > 4) return null;
+
+    return { len, samples, history };
 }
 
 function normalizeWeakStats(parsed) {
@@ -207,16 +245,30 @@ function serializeWeakStats(stats) {
     const ngrams = {};
     for (const [ngram, entry] of Object.entries(stats.ngrams || {})) {
         const samples = entry && entry.samples;
-        if (!Array.isArray(samples) || !samples.length) continue;
-        const times = new Array(samples.length);
+        const history = entry && entry.history;
+        const hasSamples = Array.isArray(samples) && samples.length > 0;
+        const hasHistory = Array.isArray(history) && history.length > 0;
+        if (!hasSamples && !hasHistory) continue;
+
+        const times = hasSamples ? new Array(samples.length) : [];
         let flags = '';
-        for (let i = 0; i < samples.length; i++) {
-            times[i] = Math.round(samples[i].time);
-            flags += samples[i].hadError ? '1' : '0';
+        if (hasSamples) {
+            for (let i = 0; i < samples.length; i++) {
+                times[i] = Math.round(samples[i].time);
+                flags += samples[i].hadError ? '1' : '0';
+            }
         }
-        ngrams[ngram] = { len: entry.len, t: times, e: flags };
+
+        const h = [];
+        if (hasHistory) {
+            for (let j = 0; j < history.length; j++) {
+                h.push([history[j].avgTime, history[j].errorCount, history[j].timestamp, history[j].count]);
+            }
+        }
+
+        ngrams[ngram] = { len: entry.len, t: times, e: flags, h };
     }
-    return { fmt: 2, meta: stats.meta, ngrams };
+    return { fmt: 4, meta: stats.meta, ngrams };
 }
 
 // =============================================================================
@@ -228,7 +280,7 @@ const ngramTypeConfig = {
 
     data() {
         return {
-            VERSION: 5.8,
+            VERSION: 6.1,
 
             showThemeMenu: false,
             showAudioMenu: false,
@@ -284,10 +336,25 @@ const ngramTypeConfig = {
             weakTrigrams: [],
             weakTetragrams: [],
             activeWeakTab: 'bigrams',
+            weaknessSortBy: 'priority', // 'priority' | 'latency' | 'error'
+
+            // Drill configuration modal state (Includes dedicated Caps & Punct toggles)
+            drillNgramType: 'bigrams',
             drillScope: 25,
             drillMode: 'classic',
-            weaknessFilterCaps: true,
-            weaknessFilterPunct: true,
+            drillFilterCaps: true,
+            drillFilterPunct: true,
+            drillConfig: {
+                combination: 2,
+                repetition: 3,
+                minimumWPM: 40,
+                minimumAccuracy: 100
+            },
+
+            // Per-ngram evolution modal state
+            selectedNgramData: null,
+            evolutionViewMode: 'recent', // 'recent' (100 occs) | 'alltime'
+            hoveredPointIdx: null,
 
             currentWordIdx: 0,
             currentWordStartTime: 0,
@@ -389,6 +456,26 @@ const ngramTypeConfig = {
             const sum = ds.WPMs.reduce((a, b) => a + b, 0);
             return Math.round(sum / ds.WPMs.length);
         },
+        effectiveBaselineWpm() {
+            const avg = this.averageWPM;
+            if (avg && avg >= 20) return avg;
+            const targetMin = this.dataSource?.minimumWPM;
+            if (targetMin && targetMin >= 20) return targetMin;
+            return 45; // Standard typist benchmark default
+        },
+        activeNgramLength() {
+            if (this.activeWeakTab === 'bigrams') return 2;
+            if (this.activeWeakTab === 'trigrams') return 3;
+            return 4;
+        },
+        activeNgramLengthLabel() {
+            if (this.activeWeakTab === 'bigrams') return 'bi';
+            if (this.activeWeakTab === 'trigrams') return 'tri';
+            return 'tetra';
+        },
+        currentBaselineLatency() {
+            return Math.round((12000 * this.activeNgramLength) / this.effectiveBaselineWpm);
+        },
         categoryFolder() {
             const casePart = this.data.includeUppercase ? 'All_Cases_Alphanumeric' : 'Lowercase_Alphanumeric';
             return this.data.includePunctuation ? `${casePart}_Punctuation` : casePart;
@@ -409,7 +496,7 @@ const ngramTypeConfig = {
             const c = this.completedTestsCount;
             if (c === 0) return { label: 'No Data', class: 'badge-secondary', text: 'Finish at least 1 test.' };
             if (c < 3) return { label: 'Calibrating', class: 'badge-warning', text: `Need ${3 - c} more test(s).` };
-            if (c < 8) return { label: 'Moderate', class: 'badge-info', text: 'Patterns over last 50 occurrences.' };
+            if (c < 8) return { label: 'Moderate', class: 'badge-info', text: 'Patterns over recent tests.' };
             return { label: 'High Precision', class: 'badge-success', text: 'High statistical confidence.' };
         },
         activeWeakList() {
@@ -418,19 +505,33 @@ const ngramTypeConfig = {
             else if (this.activeWeakTab === 'trigrams') list = this.weakTrigrams;
             else list = this.weakTetragrams;
 
-            return list.filter(item => {
-                if (!this.weaknessFilterCaps && CAPS_REGEX.test(item.ngram)) return false;
-                if (!this.weaknessFilterPunct && PUNCT_REGEX.test(item.ngram)) return false;
-                return true;
-            });
+            return this.sortWeaknessList(list, this.weaknessSortBy);
         },
         activeListAvailableCount() {
             return this.activeWeakList?.length ?? 0;
         },
+        drillPoolCount() {
+            let list = [];
+            if (this.drillNgramType === 'bigrams') list = this.weakBigrams;
+            else if (this.drillNgramType === 'trigrams') list = this.weakTrigrams;
+            else list = this.weakTetragrams;
+
+            const filtered = list.filter(item => {
+                if (!this.drillFilterCaps && CAPS_REGEX.test(item.ngram)) return false;
+                if (!this.drillFilterPunct && PUNCT_REGEX.test(item.ngram)) return false;
+                return true;
+            });
+
+            return filtered.length;
+        },
         drillModeDescription() {
-            if (this.drillMode === 'classic') return 'Direct repetitive drill of your slowest n-grams.';
-            if (this.drillMode === 'sandwich') return `Wraps each weak n-gram with high-frequency ${this.readableCorpusName} anchor words.`;
-            return 'Step-by-step ladder progression expanding each n-gram into real words.';
+            if (this.drillMode === 'classic') return 'Direct repetition drill of your priority n-grams.';
+            if (this.drillMode === 'sandwich') return `Wraps each n-gram with high-frequency ${this.readableCorpusName} anchor words.`;
+            return 'Lexical ladder expanding each n-gram into real words of increasing length.';
+        },
+        hoveredPoint() {
+            if (this.hoveredPointIdx === null || !this.selectedNgramData?.chart?.points) return null;
+            return this.selectedNgramData.chart.points[this.hoveredPointIdx] || null;
         }
     },
 
@@ -472,6 +573,7 @@ const ngramTypeConfig = {
         this._allowedBigramsSet = new Set();
         this._allowedTrigramsSet = new Set();
         this._allowedTetragramsSet = new Set();
+        this._ngramRanks = new Map();
         this._loadSeq = 0;
         this._latestLoad = Promise.resolve();
         this._poolCache = new Map();
@@ -733,9 +835,12 @@ const ngramTypeConfig = {
             this._allowedTrigramsSet = pool.trigramsSet;
             this._allowedTetragramsSet = pool.tetragramsSet;
 
+            this._ngramRanks = pool.ranks;
+
             this.currentTestStaging = {};
             this.resetCurrentPhraseMetrics();
             this.refreshPhrases();
+            this.refreshWeakStats();
         },
 
         loadNgramPool(basePath) {
@@ -750,11 +855,25 @@ const ngramTypeConfig = {
                     if (!words.length || !raw2.length || !raw3.length || !raw4.length) {
                         this._poolCache.delete(basePath);
                     }
-                    return Object.assign({ words: Object.freeze(words) }, buildNgramPyramid(raw2, raw3, raw4));
+                    const pyramid = buildNgramPyramid(raw2, raw3, raw4);
+                    const ranks = new Map();
+
+                    raw2.forEach((ng, idx) => ranks.set(ng, idx + 1));
+                    raw3.forEach((ng, idx) => ranks.set(ng, idx + 1));
+                    raw4.forEach((ng, idx) => ranks.set(ng, idx + 1));
+
+                    return Object.assign({ words: Object.freeze(words), ranks }, pyramid);
                 });
                 this._poolCache.set(basePath, pending);
             }
             return pending;
+        },
+
+        getNgramRank(ngram, len) {
+            if (this._ngramRanks && this._ngramRanks.has(ngram)) {
+                return this._ngramRanks.get(ngram);
+            }
+            return 201; // Default to just outside top pool for derived sub-ngrams
         },
 
         loadFullWordList(basePath) {
@@ -831,7 +950,6 @@ const ngramTypeConfig = {
 
         save() {
             try {
-                // Prune large runtime-generated phrase arrays before serializing to localStorage
                 const dataToSave = { ...this.data };
                 for (const src of ['bigrams', 'trigrams', 'tetragrams', 'words', 'custom_words']) {
                     if (dataToSave[src]) {
@@ -908,7 +1026,6 @@ const ngramTypeConfig = {
             ds.combination = sanitizePositiveInt(ds.combination);
             ds.repetition = sanitizePositiveInt(ds.repetition);
 
-            // Safeguard: Preserve existing active drill phrases when in custom_words mode
             if (this.data.source === 'custom_words' && (!this.custom_words || !this.custom_words.length)) {
                 if (ds.phrases && ds.phrases.length) {
                     ds.phrasesCurrentIndex = 0;
@@ -1016,7 +1133,7 @@ const ngramTypeConfig = {
                 this.playSound(this.correctLetterSound);
             }
 
-            // Deterministic catch-up loop: Handles multi-character bursts or rapid typing
+            // Deterministic catch-up loop
             const ranges = this.phraseWordRanges;
             while (this.currentWordIdx < ranges.length && typedLen >= ranges[this.currentWordIdx].boundary) {
                 const targetRange = ranges[this.currentWordIdx];
@@ -1064,7 +1181,7 @@ const ngramTypeConfig = {
 
         recordDeterministicWord(word, duration, hadError) {
             const wordLen = word.length;
-            const boundedDuration = Math.max(120, Math.min(4500, duration));
+            const boundedDuration = Math.max(100, Math.min(4500, duration));
 
             this.stageNgramSample(word, wordLen, boundedDuration, hadError);
 
@@ -1095,7 +1212,6 @@ const ngramTypeConfig = {
         },
 
         resetCurrentPhraseMetrics() {
-            // Note: currentTestStaging is preserved to maintain cumulative retry weighting
             this.hitsCorrect = 0;
             this.hitsWrong = 0;
             this.typedPhrase = '';
@@ -1149,14 +1265,33 @@ const ngramTypeConfig = {
             for (const [ngram, staged] of Object.entries(this.currentTestStaging)) {
                 let target = ngrams[ngram];
                 if (!target) {
-                    this.$set(ngrams, ngram, { len: staged.len, samples: [] });
+                    this.$set(ngrams, ngram, { len: staged.len, samples: [], history: [] });
                     target = ngrams[ngram];
                 }
+                if (!Array.isArray(target.history)) this.$set(target, 'history', []);
+                if (!Array.isArray(target.samples)) this.$set(target, 'samples', []);
 
                 target.samples.push(...staged.samples);
 
-                if (target.samples.length > MAX_SAMPLES_PER_NGRAM) {
-                    target.samples = target.samples.slice(-MAX_SAMPLES_PER_NGRAM);
+                // Checkpoint every 5 occurrences into permanent granular history
+                while (target.samples.length >= CHUNK_SIZE) {
+                    const chunk = target.samples.splice(0, CHUNK_SIZE);
+                    let sumTime = 0;
+                    let errorCount = 0;
+                    for (let i = 0; i < CHUNK_SIZE; i++) {
+                        sumTime += chunk[i].time;
+                        if (chunk[i].hadError) errorCount++;
+                    }
+                    target.history.push({
+                        count: CHUNK_SIZE,
+                        avgTime: Math.round(sumTime / CHUNK_SIZE),
+                        errorCount,
+                        timestamp: Date.now()
+                    });
+                }
+
+                if (target.history.length > MAX_HISTORY_BLOCKS) {
+                    target.history = target.history.slice(-MAX_HISTORY_BLOCKS);
                 }
             }
 
@@ -1172,46 +1307,126 @@ const ngramTypeConfig = {
             const ngrams = this.weakStatsData.ngrams;
             if (!ngrams) return list;
 
+            const baselineWpm = this.effectiveBaselineWpm;
+            const baselineLatency = Math.max(80, (12000 * len) / baselineWpm);
+
             for (const [ngram, item] of Object.entries(ngrams)) {
+                if (item.len !== len || !this.isAllowedPyramidNgram(ngram, len)) continue;
+
                 const samples = item.samples || [];
-                const count = samples.length;
+                const history = item.history || [];
+                const historySamplesCount = history.reduce((acc, h) => acc + (h.count || CHUNK_SIZE), 0);
+                const totalCount = historySamplesCount + samples.length;
+                if (totalCount < 1) continue;
 
-                if (item.len === len && count >= 1 && this.isAllowedPyramidNgram(ngram, len)) {
-                    let sumTime = 0;
-                    let errorCount = 0;
+                // Recent sliding window (up to 40 occurrences)
+                let recentSumTime = 0;
+                let recentErrors = 0;
+                let recentCount = 0;
 
-                    for (let i = 0; i < count; i++) {
-                        sumTime += samples[i].time;
-                        if (samples[i].hadError) errorCount++;
-                    }
-
-                    const avg = sumTime / count;
-                    const rawErrRate = errorCount / count;
-
-                    // Empirical Laplace smoothing prevents low-sample flukes from dominating ranking
-                    const smoothedErrRate = errorCount / (count + 2);
-                    const score = Math.round(avg * (1 + (smoothedErrRate * 2.5)));
-
-                    const barPct = Math.min(100, Math.max(15, Math.round((score / 550) * 100)));
-                    let barColor = '#10b981';
-                    if (score > 220 || rawErrRate > 0.10) barColor = '#f59e0b';
-                    if (score > 340 || rawErrRate > 0.25) barColor = '#ef4444';
-
-                    list.push({
-                        ngram,
-                        avgTime: Math.round(avg),
-                        errorRate: Math.round(rawErrRate * 100),
-                        errors: errorCount,
-                        count,
-                        score,
-                        barPct,
-                        barColor,
-                        confirmed: count >= MIN_CONFIRMED_SAMPLES
-                    });
+                for (let i = 0; i < samples.length; i++) {
+                    recentSumTime += samples[i].time;
+                    if (samples[i].hadError) recentErrors++;
+                    recentCount++;
                 }
+
+                if (history.length > 0) {
+                    const needed = Math.max(0, 40 - recentCount);
+                    const blocksToTake = Math.min(history.length, Math.ceil(needed / CHUNK_SIZE));
+                    const recentBlocks = history.slice(-blocksToTake);
+                    for (let b = 0; b < recentBlocks.length; b++) {
+                        const bCount = recentBlocks[b].count || CHUNK_SIZE;
+                        recentSumTime += recentBlocks[b].avgTime * bCount;
+                        recentErrors += recentBlocks[b].errorCount;
+                        recentCount += bCount;
+                    }
+                }
+
+                if (recentCount === 0) continue;
+
+                const avg = recentSumTime / recentCount;
+                const rawErrRate = recentErrors / recentCount;
+
+                // WPM equivalent for this n-gram
+                const ngramWpm = Math.round((12000 * len) / Math.max(40, avg));
+
+                // Personal Relative Ratio: R = Observed Latency / Personal Baseline Latency
+                const relativeRatio = avg / baselineLatency;
+
+                // Smoothed Laplace error multiplier
+                const laplaceErrRate = recentErrors / (recentCount + 2);
+                const personalDifficulty = relativeRatio * (1 + (laplaceErrRate * 2.5));
+
+                // Natural corpus linguistic frequency weight
+                const rank = this.getNgramRank(ngram, len);
+                const freqWeight = 0.35 + (0.65 * ((201 - Math.min(200, rank)) / 200));
+
+                // Normalized Priority Index (1 to 100)
+                const priorityScore = Math.min(100, Math.max(1, Math.round(personalDifficulty * freqWeight * 40)));
+
+                // Qualitative classification based on the relative score
+                let tierLabel = 'FLUID';
+                let tierClass = 'badge-priority-fluid';
+                let barColor = '#10b981';
+
+                if (priorityScore >= 70) {
+                    tierLabel = 'CRITICAL';
+                    tierClass = 'badge-priority-critical';
+                    barColor = '#ef4444';
+                } else if (priorityScore >= 50) {
+                    tierLabel = 'HIGH';
+                    tierClass = 'badge-priority-high';
+                    barColor = '#f59e0b';
+                } else if (priorityScore >= 30) {
+                    tierLabel = 'MODERATE';
+                    tierClass = 'badge-priority-moderate';
+                    barColor = 'var(--text-target)';
+                }
+
+                const barPct = Math.min(100, Math.max(15, Math.round(personalDifficulty * 45)));
+
+                list.push({
+                    ngram,
+                    len,
+                    avgTime: Math.round(avg),
+                    wpm: ngramWpm,
+                    errorRate: Math.round(rawErrRate * 100),
+                    errors: recentErrors,
+                    count: recentCount,
+                    totalCount,
+                    history,
+                    score: Math.round(personalDifficulty * 100),
+                    priorityScore,
+                    tierLabel,
+                    tierClass,
+                    corpusRank: rank,
+                    barPct,
+                    barColor,
+                    confirmed: totalCount >= MIN_CONFIRMED_SAMPLES,
+                    isRelegated: totalCount < MIN_ERROR_SORT_SAMPLES
+                });
             }
-            list.sort((a, b) => (b.confirmed - a.confirmed) || (b.score - a.score));
+
             return list;
+        },
+
+        sortWeaknessList(list, sortBy) {
+            const sorted = list.slice();
+            if (sortBy === 'latency') {
+                sorted.sort((a, b) => (b.confirmed - a.confirmed) || (b.avgTime - a.avgTime));
+            } else if (sortBy === 'error') {
+                // Partition: items with >= 20 samples prioritized; < 20 relegated to bottom
+                sorted.sort((a, b) => {
+                    const aValid = (a.totalCount >= MIN_ERROR_SORT_SAMPLES);
+                    const bValid = (b.totalCount >= MIN_ERROR_SORT_SAMPLES);
+                    if (aValid !== bValid) return bValid ? 1 : -1;
+                    return (b.errorRate - a.errorRate) || (b.errors - a.errors) || (b.totalCount - a.totalCount);
+                });
+            } else {
+                // Default: Priority / Impact Score
+                sorted.sort((a, b) => (b.confirmed - a.confirmed) || (b.priorityScore - a.priorityScore));
+            }
+            return sorted;
         },
 
         refreshWeakStats() {
@@ -1227,6 +1442,345 @@ const ngramTypeConfig = {
                 this.currentTestStaging = {};
                 safeStorage.remove(this.getWeakStorageKey(this.currentProfileId, this.currentLangCode));
                 this.refreshWeakStats();
+                if (this.selectedNgramData) {
+                    $('#ngram-history-modal').modal('hide');
+                    this.selectedNgramData = null;
+                }
+            }
+        },
+
+        // =========================================================================
+        // PER-NGRAM EVOLUTION MODAL
+        // =========================================================================
+
+        setEvolutionViewMode(mode) {
+            this.evolutionViewMode = mode;
+            if (this.selectedNgramData) {
+                this.buildEvolutionChart(this.selectedNgramData);
+            }
+        },
+
+        openNgramHistory(item) {
+            if (!item) return;
+            this.evolutionViewMode = (item.totalCount >= 50) ? 'recent' : 'alltime';
+            this.buildEvolutionChart(item);
+            $('#weakness-modal').modal('hide');
+            $('#ngram-history-modal').modal('show');
+        },
+
+        buildEvolutionChart(item) {
+            const history = item.history || [];
+            const totalCount = item.totalCount;
+            const hasPoints = (history.length > 0);
+
+            let chartData = null;
+            let bestBlockTime = 0;
+            let worstBlockTime = 0;
+            let trendLabel = 'Stable';
+            let trendClass = 'text-warning';
+            let trendIcon = 'fa-minus';
+
+            if (hasPoints) {
+                // Select blocks according to view mode
+                let rawBlocks = history.slice();
+                if (this.evolutionViewMode === 'recent' && totalCount >= 50) {
+                    // Last 100 occurrences (20 blocks of 5)
+                    rawBlocks = rawBlocks.slice(-20);
+                }
+
+                // Downsample for All-Time mode if points exceed MAX_CHART_POINTS
+                let plotBlocks = [];
+                if (rawBlocks.length <= MAX_CHART_POINTS) {
+                    plotBlocks = rawBlocks.map((b, idx) => ({
+                        avgTime: b.avgTime,
+                        errorCount: b.errorCount,
+                        count: b.count || CHUNK_SIZE,
+                        timestamp: b.timestamp,
+                        label: `Block #${idx + 1} (${b.count || CHUNK_SIZE} occ.)`
+                    }));
+                } else {
+                    const binSize = Math.ceil(rawBlocks.length / MAX_CHART_POINTS);
+                    for (let i = 0; i < rawBlocks.length; i += binSize) {
+                        const bin = rawBlocks.slice(i, i + binSize);
+                        let sumT = 0;
+                        let errs = 0;
+                        let occs = 0;
+                        bin.forEach(b => {
+                            const c = b.count || CHUNK_SIZE;
+                            sumT += b.avgTime * c;
+                            errs += b.errorCount;
+                            occs += c;
+                        });
+                        plotBlocks.push({
+                            avgTime: Math.round(sumT / occs),
+                            errorCount: errs,
+                            count: occs,
+                            timestamp: bin[bin.length - 1].timestamp,
+                            label: `Occurrences ${i * CHUNK_SIZE + 1}–${Math.min(totalCount, (i + bin.length) * CHUNK_SIZE)}`
+                        });
+                    }
+                }
+
+                const times = plotBlocks.map(b => b.avgTime);
+                bestBlockTime = Math.min(...times);
+                worstBlockTime = Math.max(...times);
+
+                // Trend detection
+                if (plotBlocks.length >= 2) {
+                    const earlyAvg = plotBlocks.slice(0, Math.min(3, plotBlocks.length)).reduce((acc, h) => acc + h.avgTime, 0) / Math.min(3, plotBlocks.length);
+                    const lateAvg = plotBlocks.slice(-Math.min(3, plotBlocks.length)).reduce((acc, h) => acc + h.avgTime, 0) / Math.min(3, plotBlocks.length);
+                    const delta = lateAvg - earlyAvg;
+
+                    if (delta < -15) {
+                        trendLabel = 'Improving';
+                        trendClass = 'text-success';
+                        trendIcon = 'fa-arrow-down';
+                    } else if (delta > 20) {
+                        trendLabel = 'Needs Work';
+                        trendClass = 'text-danger';
+                        trendIcon = 'fa-arrow-up';
+                    }
+                }
+
+                // Prepare SVG chart coordinates
+                const svgW = 600;
+                const svgH = 220;
+                const padLeft = 52;
+                const padRight = 20;
+                const padTop = 24;
+                const padBottom = 28;
+
+                const plotW = svgW - padLeft - padRight;
+                const plotH = svgH - padTop - padBottom;
+
+                const minVal = Math.max(60, Math.floor((bestBlockTime - 25) / 50) * 50);
+                const maxVal = Math.max(minVal + 100, Math.ceil((worstBlockTime + 25) / 50) * 50);
+
+                const getX = (idx) => padLeft + (idx / Math.max(1, plotBlocks.length - 1)) * plotW;
+                const getY = (val) => padTop + (1 - ((val - minVal) / Math.max(1, maxVal - minVal))) * plotH;
+
+                const points = plotBlocks.map((b, idx) => {
+                    const cx = Math.round(getX(idx));
+                    const cy = Math.round(getY(b.avgTime));
+                    const wpmEq = Math.round((12000 * item.len) / Math.max(40, b.avgTime));
+                    return {
+                        x: cx,
+                        y: cy,
+                        label: b.label,
+                        avgTime: b.avgTime,
+                        wpm: wpmEq,
+                        errorCount: b.errorCount,
+                        count: b.count,
+                        errorRate: Math.round((b.errorCount / Math.max(1, b.count)) * 100),
+                        dateFormatted: moment(b.timestamp).format('MMM D, HH:mm'),
+                        tooltipLeft: Math.min(svgW - 90, Math.max(90, cx)),
+                        tooltipTop: Math.max(15, cy)
+                    };
+                });
+
+                const linePointsStr = points.map(p => `${p.x},${p.y}`).join(' ');
+                const baselineY = Math.round(getY(this.currentBaselineLatency));
+
+                const gridY = [];
+                const step = (maxVal - minVal) <= 150 ? 50 : 100;
+                for (let v = minVal; v <= maxVal; v += step) {
+                    gridY.push({ y: Math.round(getY(v)), val: v });
+                }
+
+                const areaPointsStr = `${points[0].x},${padTop + plotH} ${linePointsStr} ${points[points.length - 1].x},${padTop + plotH}`;
+
+                chartData = {
+                    points,
+                    linePoints: linePointsStr,
+                    areaPoints: areaPointsStr,
+                    gridY,
+                    baselineY: (baselineY >= padTop && baselineY <= padTop + plotH) ? baselineY : null
+                };
+            }
+
+            this.selectedNgramData = {
+                ...item,
+                hasPoints,
+                viewMode: this.evolutionViewMode,
+                bestBlockTime,
+                worstBlockTime,
+                trendLabel,
+                trendClass,
+                trendIcon,
+                chart: chartData
+            };
+            this.hoveredPointIdx = null;
+        },
+
+        backToWeaknessFromHistory() {
+            $('#ngram-history-modal').modal('hide');
+            this.selectedNgramData = null;
+            $('#weakness-modal').modal('show');
+        },
+
+        launchSingleNgramDrill(targetNgram) {
+            if (!targetNgram) return;
+            $('#ngram-history-modal').modal('hide');
+
+            const ds = this.data[this.data.source];
+            const comb = Math.max(1, ds.combination || 2);
+            const rep = Math.max(1, ds.repetition || 3);
+            const unit = new Array(comb).fill(targetNgram).join(' ');
+            const singlePhrase = new Array(rep).fill(unit).join(' ');
+
+            this._suppressSourceWatcher = true;
+            this.data.source = 'custom_words';
+            this.data.custom_words.phrases = [singlePhrase];
+            this.data.custom_words.phrasesCurrentIndex = 0;
+            this.expectedPhrase = singlePhrase;
+            this.buildPhraseWordRanges(this.expectedPhrase);
+            this.resetCurrentPhraseMetrics();
+            this.pauseTimer();
+            this.save();
+
+            this.$nextTick(() => {
+                this._suppressSourceWatcher = false;
+                if (this.$inputEl) this.$inputEl.focus();
+            });
+        },
+
+        // =========================================================================
+        // TARGETED DRILLS CONFIGURATION & LAUNCH
+        // =========================================================================
+
+        openDrillModal() {
+            this.drillNgramType = this.activeWeakTab;
+            const ds = this.data[this.data.source];
+
+            this.drillConfig.combination = ds.combination || 2;
+            this.drillConfig.repetition = ds.repetition || 3;
+            this.drillConfig.minimumWPM = ds.minimumWPM || 40;
+            this.drillConfig.minimumAccuracy = ds.minimumAccuracy || 100;
+
+            $('#weakness-modal').modal('hide');
+            $('#drill-modal').modal('show');
+        },
+
+        cancelDrillConfig() {
+            $('#drill-modal').modal('hide');
+            $('#weakness-modal').modal('show');
+        },
+
+        async launchConfiguredDrill() {
+            if (this._drillStarting) return;
+            this._drillStarting = true;
+
+            try {
+                this.refreshWeakStats();
+
+                let list = [];
+                if (this.drillNgramType === 'bigrams') list = this.weakBigrams;
+                else if (this.drillNgramType === 'trigrams') list = this.weakTrigrams;
+                else list = this.weakTetragrams;
+
+                // Apply Caps & Punctuation filters directly in drill modal
+                const filtered = list.filter(item => {
+                    if (!this.drillFilterCaps && CAPS_REGEX.test(item.ngram)) return false;
+                    if (!this.drillFilterPunct && PUNCT_REGEX.test(item.ngram)) return false;
+                    return true;
+                });
+
+                const sorted = this.sortWeaknessList(filtered, 'priority');
+                if (!sorted.length) return;
+
+                const selected = sorted.slice(0, this.drillScope).map(item => item.ngram);
+                const comb = Math.max(1, sanitizePositiveInt(this.drillConfig.combination));
+                const rep = Math.max(1, sanitizePositiveInt(this.drillConfig.repetition));
+                const minWPM = Math.max(1, Math.min(500, Number(this.drillConfig.minimumWPM) || 40));
+                const minAcc = Math.max(1, Math.min(100, Number(this.drillConfig.minimumAccuracy) || 100));
+
+                const generatedPhrases = [];
+
+                if (this.drillMode === 'sandwich') {
+                    const anchors = this.getLanguageAnchorWords();
+                    let anchorIdx = 0;
+
+                    for (let i = 0; i < selected.length; i += comb) {
+                        const chunk = selected.slice(i, i + comb);
+                        const unitTokens = [];
+
+                        for (const ng of chunk) {
+                            let anchor = anchors[anchorIdx % anchors.length];
+                            anchorIdx++;
+                            const hasCaps = CAPS_REGEX.test(ng);
+                            anchor = (hasCaps && this.drillFilterCaps) ? anchor.toUpperCase() : anchor.toLowerCase();
+                            unitTokens.push(anchor);
+                            unitTokens.push(ng);
+                        }
+
+                        let closingAnchor = anchors[anchorIdx % anchors.length];
+                        anchorIdx++;
+                        unitTokens.push(closingAnchor.toLowerCase());
+
+                        const singleUnit = unitTokens.join(' ');
+                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
+                        generatedPhrases.push(fullPhrase);
+                    }
+
+                } else if (this.drillMode === 'ladder') {
+                    const basePath = this.getBasePath();
+                    const wordPool = await this.loadFullWordList(basePath);
+                    if (basePath !== this.getBasePath()) return;
+
+                    const ladderSets = this.buildLadderWords(selected, wordPool);
+
+                    for (let i = 0; i < ladderSets.length; i += comb) {
+                        const chunk = ladderSets.slice(i, i + comb);
+                        const combinedLadder = chunk.flat();
+                        const singleUnit = combinedLadder.join(' ');
+                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
+                        generatedPhrases.push(fullPhrase);
+                    }
+
+                } else {
+                    for (let i = 0; i < selected.length; i += comb) {
+                        const chunk = selected.slice(i, i + comb);
+                        const singleUnit = chunk.join(' ');
+                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
+                        generatedPhrases.push(fullPhrase);
+                    }
+                }
+
+                this._suppressSourceWatcher = true;
+                this.data.source = 'custom_words';
+
+                this.data.custom_words.combination = comb;
+                this.data.custom_words.repetition = rep;
+                this.data.custom_words.minimumWPM = minWPM;
+                this.data.custom_words.minimumAccuracy = minAcc;
+
+                if (this.data[this.drillNgramType]) {
+                    this.data[this.drillNgramType].combination = comb;
+                    this.data[this.drillNgramType].repetition = rep;
+                    this.data[this.drillNgramType].minimumWPM = minWPM;
+                    this.data[this.drillNgramType].minimumAccuracy = minAcc;
+                }
+
+                this.data.custom_words.phrases = generatedPhrases;
+                this.data.custom_words.phrasesCurrentIndex = 0;
+                this.expectedPhrase = generatedPhrases[0] || '';
+                if (this.expectedPhrase) {
+                    this.buildPhraseWordRanges(this.expectedPhrase);
+                }
+                this.resetCurrentPhraseMetrics();
+                this.pauseTimer();
+                this.save();
+
+                $('#drill-modal').modal('hide');
+
+                this.$nextTick(() => {
+                    this._suppressSourceWatcher = false;
+                    if (this.$inputEl) {
+                        this.$inputEl.focus();
+                    }
+                });
+            } finally {
+                this._drillStarting = false;
             }
         },
 
@@ -1246,118 +1800,21 @@ const ngramTypeConfig = {
             return anchors;
         },
 
-        async startWeaknessDrill() {
-            if (this._drillStarting) return;
-            this._drillStarting = true;
-
-            try {
-                this.refreshWeakStats();
-                const list = this.activeWeakList;
-                if (!list.length) return;
-
-                const selected = list.slice(0, this.drillScope).map(item => item.ngram);
-                const ds = this.data[this.data.source];
-                const comb = Math.max(1, ds.combination || 2);
-                const rep = Math.max(1, ds.repetition || 3);
-                const generatedPhrases = [];
-
-                if (this.drillMode === 'sandwich') {
-                    // SANDWICH DRILL: Strict Anchor -> Target Ngram -> Anchor rhythm
-                    const anchors = this.getLanguageAnchorWords();
-                    let anchorIdx = 0;
-
-                    for (let i = 0; i < selected.length; i += comb) {
-                        const chunk = selected.slice(i, i + comb);
-                        const unitTokens = [];
-
-                        for (const ng of chunk) {
-                            const anchor = anchors[anchorIdx % anchors.length];
-                            anchorIdx++;
-                            const hasCaps = CAPS_REGEX.test(ng);
-                            unitTokens.push(hasCaps ? anchor.toUpperCase() : anchor.toLowerCase());
-                            unitTokens.push(ng);
-                        }
-
-                        // Closing anchor ensures symmetric rhythm wrapping
-                        const closingAnchor = anchors[anchorIdx % anchors.length];
-                        anchorIdx++;
-                        unitTokens.push(closingAnchor);
-
-                        const singleUnit = unitTokens.join(' ');
-                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
-                        generatedPhrases.push(fullPhrase);
-                    }
-
-                } else if (this.drillMode === 'ladder') {
-                    // LADDER DRILL: Progressive lexical ladder (Target -> Short -> Medium -> Long)
-                    const basePath = this.getBasePath();
-                    const wordPool = await this.loadFullWordList(basePath);
-                    if (basePath !== this.getBasePath()) return;
-
-                    const ladderSets = this.buildLadderWords(selected, wordPool);
-
-                    for (let i = 0; i < ladderSets.length; i += comb) {
-                        const chunk = ladderSets.slice(i, i + comb);
-                        const combinedLadder = chunk.flat();
-                        const singleUnit = combinedLadder.join(' ');
-                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
-                        generatedPhrases.push(fullPhrase);
-                    }
-
-                } else {
-                    // CLASSIC DRILL: Direct repetition of target n-grams
-                    for (let i = 0; i < selected.length; i += comb) {
-                        const chunk = selected.slice(i, i + comb);
-                        const singleUnit = chunk.join(' ');
-                        const fullPhrase = new Array(rep).fill(singleUnit).join(' ');
-                        generatedPhrases.push(fullPhrase);
-                    }
-                }
-
-                // Lock watcher to prevent race condition when transitioning to custom_words
-                this._suppressSourceWatcher = true;
-                this.data.source = 'custom_words';
-
-                this.data.custom_words.phrases = generatedPhrases;
-                this.data.custom_words.phrasesCurrentIndex = 0;
-                this.expectedPhrase = generatedPhrases[0] || '';
-                if (this.expectedPhrase) {
-                    this.buildPhraseWordRanges(this.expectedPhrase);
-                }
-                this.resetCurrentPhraseMetrics();
-                this.pauseTimer();
-                this.save();
-
-                $('#weakness-modal').modal('hide');
-
-                this.$nextTick(() => {
-                    this._suppressSourceWatcher = false;
-                    if (this.$inputEl) {
-                        this.$inputEl.focus();
-                    }
-                });
-            } finally {
-                this._drillStarting = false;
-            }
-        },
-
         buildLadderWords(selected, wordPool) {
-            // Clean dictionary pool: top 4,000 words only, zero digits allowed
             const cleanPool = [];
             const maxCandidates = Math.min(4000, wordPool.length);
             for (let i = 0; i < maxCandidates; i++) {
                 const w = wordPool[i];
                 if (!w || /\d/.test(w) || w.length < 2) continue;
+                if (!this.drillFilterCaps && CAPS_REGEX.test(w)) continue;
+                if (!this.drillFilterPunct && PUNCT_REGEX.test(w)) continue;
                 cleanPool.push(w);
             }
 
             const ladders = [];
 
             for (const ng of selected) {
-                const ladder = [ng]; // Step 0: The n-gram itself
-
-                // Only treat as attached punctuation if it's true clause-ending punctuation (e.g. "e," or "t.")
-                // Apostrophes (') and hyphens (-) are contractions / elisions and belong inside real words (e.g., d'un, l'Union).
+                const ladder = [ng];
                 const lastChar = ng.slice(-1);
                 const hasTerminalPunct = TERMINAL_CLAUSE_PUNCT.test(lastChar);
 
@@ -1377,26 +1834,20 @@ const ngramTypeConfig = {
                 let longWord = null;
 
                 for (const candidate of cleanPool) {
-                    // Strip terminal clause punctuation from candidate word if already present in corpus
                     const cleanCandidate = candidate.replace(TERMINAL_CLAUSE_REGEX, '');
                     const cLower = cleanCandidate.toLowerCase();
 
-                    // Candidate must not be identical to the target n-gram
                     if (cLower === rootLower || cLower === ngLower) continue;
 
                     let matches = false;
                     let wordToAdd = '';
 
                     if (hasTerminalPunct) {
-                        // For n-grams ending with clause punctuation (e.g., "e," or "t."):
-                        // The candidate word MUST end with rootNg so that candidate + attachedPunct actually contains ng!
                         if (cLower.endsWith(rootLower)) {
                             matches = true;
                             wordToAdd = cleanCandidate + attachedPunct;
                         }
                     } else {
-                        // For standard n-grams (e.g., "d'", "th", "'u", "tion"):
-                        // The candidate word must contain the exact n-gram!
                         if (cLower.includes(ngLower)) {
                             matches = true;
                             wordToAdd = cleanCandidate;
@@ -1407,16 +1858,11 @@ const ngramTypeConfig = {
 
                     const len = cleanCandidate.length;
 
-                    // Step 1: Short word (3-4 characters)
                     if (!shortWord && len >= 3 && len <= 4) {
                         shortWord = wordToAdd;
-                    }
-                    // Step 2: Medium word (5-6 characters)
-                    else if (!medWord && len >= 5 && len <= 6) {
+                    } else if (!medWord && len >= 5 && len <= 6) {
                         medWord = wordToAdd;
-                    }
-                    // Step 3: Long word (7-9 characters)
-                    else if (!longWord && len >= 7 && len <= 9) {
+                    } else if (!longWord && len >= 7 && len <= 9) {
                         longWord = wordToAdd;
                     }
 

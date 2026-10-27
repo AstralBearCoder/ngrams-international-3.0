@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
     <link rel="manifest" href="./assets/site.webmanifest">
 
-    <title>ngramInternational — Touch Typing</title>
+    <title>IntlNgram</title>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -41,7 +41,7 @@
             <div class="header-inner-container d-flex justify-content-between align-items-center">
 
                 <!-- Left Controls -->
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center header-left-zone">
                     <button
                         type="button"
                         class="sidebar-toggle-btn mr-2 mr-md-3"
@@ -60,8 +60,8 @@
                     </div>
                 </div>
 
-                <!-- Center: Logo -->
-                <div class="app-brand">
+                <!-- Center: Absolutely Centered Logo -->
+                <div class="app-brand app-brand-centered">
                     <span class="brand-title">ngram<strong>Intl</strong></span>
                 </div>
 
@@ -130,7 +130,7 @@
                         type="button"
                         data-toggle="modal"
                         data-target="#weakness-modal"
-                        title="Weakness detection and drills"
+                        title="Weakness detection, evolution and drills"
                         @click="refreshWeakStats"
                         aria-haspopup="dialog"
                     >
@@ -495,9 +495,9 @@
             </div>
         </div>
 
-        <!-- MODAL: WEAKNESS DETECTION & DRILLS -->
+        <!-- MODAL: WEAKNESS DETECTION & OVERVIEW -->
         <div id="weakness-modal" class="modal fade" role="dialog" tabindex="-1" aria-labelledby="weaknessModalTitle" aria-modal="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
                 <div class="modal-content custom-modal-box">
 
                     <div class="modal-header border-0 pb-2 d-flex justify-content-between align-items-center">
@@ -516,131 +516,165 @@
 
                     <div class="modal-body pt-1">
 
-                        <div class="alert alert-secondary py-2 px-3 mb-3 d-flex justify-content-between align-items-center small">
+                        <!-- Prominent Drill Action Banner -->
+                        <div class="drill-launch-banner p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                             <div>
-                                <i class="fa fa-database text-accent mr-1" aria-hidden="true"></i>
-                                <span>Based on <strong>last 50 occurrences max</strong> + <strong>next character continuation latency</strong>.</span>
+                                <span class="font-weight-bold text-main d-block">
+                                    <i class="fa fa-crosshairs text-accent mr-1" aria-hidden="true"></i>Targeted Drill Training
+                                </span>
+                                <small class="text-muted">Generate focused exercises from your identified bottlenecks.</small>
                             </div>
-                            <span class="font-italic text-muted">{{ confidenceStatus.text }}</span>
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-accent font-weight-bold px-3 py-2"
+                                @click="openDrillModal"
+                                :disabled="activeListAvailableCount === 0"
+                            >
+                                <i class="fa fa-play mr-1" aria-hidden="true"></i> Configure &amp; Start Drill
+                            </button>
                         </div>
 
-                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-                            <ul class="nav nav-pills weakness-nav-pills mb-2 mb-md-0" role="tablist">
-                                <li class="nav-item">
-                                    <button type="button" :class="['nav-link', { active: activeWeakTab === 'bigrams' }]" @click="activeWeakTab = 'bigrams'">
-                                        Bigrams ({{ weakBigrams.length }})
-                                    </button>
-                                </li>
-                                <li class="nav-item">
-                                    <button type="button" :class="['nav-link', { active: activeWeakTab === 'trigrams' }]" @click="activeWeakTab = 'trigrams'">
-                                        Trigrams ({{ weakTrigrams.length }})
-                                    </button>
-                                </li>
-                                <li class="nav-item">
-                                    <button type="button" :class="['nav-link', { active: activeWeakTab === 'tetragrams' }]" @click="activeWeakTab = 'tetragrams'">
-                                        Tetragrams ({{ weakTetragrams.length }})
-                                    </button>
-                                </li>
-                            </ul>
-
-                            <div class="d-flex align-items-center gap-1">
-                                <button
-                                    type="button"
-                                    :class="['filter-badge-btn', { active: weaknessFilterCaps }]"
-                                    @click="weaknessFilterCaps = !weaknessFilterCaps; refreshWeakStats()"
-                                    title="Toggle Uppercase"
-                                >
-                                    Caps
-                                </button>
-                                <button
-                                    type="button"
-                                    :class="['filter-badge-btn', { active: weaknessFilterPunct }]"
-                                    @click="weaknessFilterPunct = !weaknessFilterPunct; refreshWeakStats()"
-                                    title="Toggle Punctuation"
-                                >
-                                    Punct
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="drill-config-card p-3 mb-3">
-                            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
-                                <span class="small font-weight-bold text-muted text-uppercase">Targeted Practice</span>
-                                <span class="small text-muted">{{ activeListAvailableCount }} available</span>
+                        <!-- 2-LINE CONTROLS HEADER -->
+                        <div class="weakness-controls-wrapper mb-3">
+                            <!-- Line 1: N-gram Category Tabs -->
+                            <div class="d-flex align-items-center mb-2">
+                                <ul class="nav nav-pills weakness-nav-pills" role="tablist">
+                                    <li class="nav-item">
+                                        <button type="button" :class="['nav-link', { active: activeWeakTab === 'bigrams' }]" @click="activeWeakTab = 'bigrams'">
+                                            Bigrams ({{ weakBigrams.length }})
+                                        </button>
+                                    </li>
+                                    <li class="nav-item">
+                                        <button type="button" :class="['nav-link', { active: activeWeakTab === 'trigrams' }]" @click="activeWeakTab = 'trigrams'">
+                                            Trigrams ({{ weakTrigrams.length }})
+                                        </button>
+                                    </li>
+                                    <li class="nav-item">
+                                        <button type="button" :class="['nav-link', { active: activeWeakTab === 'tetragrams' }]" @click="activeWeakTab = 'tetragrams'">
+                                            Tetragrams ({{ weakTetragrams.length }})
+                                        </button>
+                                    </li>
+                                </ul>
                             </div>
 
-                            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
-                                <div class="btn-group btn-group-sm mb-2 mb-md-0">
+                            <!-- Line 2: Sort Actions & Personal Baseline Indicator -->
+                            <div class="d-flex flex-wrap justify-content-between align-items-center pt-1 border-top border-subtle">
+                                <div class="d-flex align-items-center flex-wrap" style="gap: 0.4rem;">
+                                    <span class="small text-muted font-weight-bold mr-1">Sort by:</span>
                                     <button
-                                        v-for="qty in [10, 25, 50, 100, 200]"
-                                        :key="qty"
                                         type="button"
-                                        :class="['btn', drillScope === qty ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
-                                        @click="drillScope = qty"
+                                        :class="['sort-pill-btn', { active: weaknessSortBy === 'priority' }]"
+                                        @click="weaknessSortBy = 'priority'"
+                                        title="Personal difficulty × Linguistic frequency"
                                     >
-                                        Top {{ qty }}
+                                        Priority
+                                    </button>
+                                    <button
+                                        type="button"
+                                        :class="['sort-pill-btn', { active: weaknessSortBy === 'latency' }]"
+                                        @click="weaknessSortBy = 'latency'"
+                                        title="Sort by slowest latency"
+                                    >
+                                        Latency
+                                    </button>
+                                    <button
+                                        type="button"
+                                        :class="['sort-pill-btn', { active: weaknessSortBy === 'error' }]"
+                                        @click="weaknessSortBy = 'error'"
+                                        title="Sort by error rate (requires ≥ 20 occurrences)"
+                                    >
+                                        Errors
                                     </button>
                                 </div>
 
-                                <div class="d-flex align-items-center">
-                                    <div class="btn-group btn-group-sm mr-2">
-                                        <button type="button" :class="['btn', drillMode === 'classic' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']" @click="drillMode = 'classic'">
-                                            Classic
-                                        </button>
-                                        <button type="button" :class="['btn', drillMode === 'sandwich' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']" @click="drillMode = 'sandwich'">
-                                            Sandwich
-                                        </button>
-                                        <button type="button" :class="['btn', drillMode === 'ladder' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']" @click="drillMode = 'ladder'">
-                                            Ladder
-                                        </button>
-                                    </div>
-
-                                    <button type="button" class="btn btn-sm btn-accent font-weight-bold" :disabled="activeListAvailableCount === 0" @click="startWeaknessDrill">
-                                        <i class="fa fa-play mr-1" aria-hidden="true"></i> Start Drill
-                                    </button>
+                                <div class="mt-1 mt-sm-0">
+                                    <span class="badge badge-accent-subtle" title="Calculated from your typing speed baseline">
+                                        <i class="fa fa-tachometer mr-1" aria-hidden="true"></i>Personal Baseline:
+                                        <strong>{{ effectiveBaselineWpm }} WPM</strong> (~{{ currentBaselineLatency }}ms/{{ activeNgramLengthLabel }})
+                                    </span>
                                 </div>
-                            </div>
-
-                            <div class="drill-mode-explainer p-2 mt-2">
-                                <i class="fa fa-info-circle text-accent mr-1" aria-hidden="true"></i>
-                                <span class="small text-muted">{{ drillModeDescription }}</span>
                             </div>
                         </div>
 
+                        <!-- Statistical Relegation Note (when sorted by error) -->
+                        <div v-if="weaknessSortBy === 'error'" class="alert alert-dark py-1 px-2 mb-2 border-secondary small text-muted d-flex align-items-center">
+                            <i class="fa fa-info-circle text-accent mr-2" aria-hidden="true"></i>
+                            <span>Error sorting prioritizes verified n-grams (≥ 20 occurrences). Items with &lt; 20 occurrences are relegated to the bottom.</span>
+                        </div>
+
+                        <!-- Weakness Table with Clickable Rows -->
                         <div class="table-responsive weakness-scroll-box">
                             <table class="table table-sm weakness-table">
                                 <thead>
                                     <tr>
-                                        <th scope="col" style="width: 8%;">#</th>
-                                        <th scope="col" style="width: 18%;">N-gram</th>
-                                        <th scope="col" style="width: 38%;">Fluidity Spectrum</th>
-                                        <th scope="col" style="width: 18%;">Latency (+Next)</th>
-                                        <th scope="col" style="width: 18%;">Errors (&le; 50)</th>
+                                        <th scope="col" style="width: 5%;">#</th>
+                                        <th scope="col" style="width: 14%;">N-gram</th>
+                                        <th scope="col" style="width: 18%;">
+                                            Priority
+                                            <i class="fa fa-question-circle text-muted ml-1"
+                                               data-toggle="tooltip"
+                                               title="Impact on your typing speed: Personal difficulty (relative to your average speed) × Frequency in language"
+                                               aria-hidden="true"></i>
+                                        </th>
+                                        <th scope="col" style="width: 25%;">Fluidity Spectrum</th>
+                                        <th scope="col" style="width: 20%;">Speed / Latency</th>
+                                        <th scope="col" style="width: 12%;">Errors</th>
+                                        <th scope="col" style="width: 6%; text-align: center;">History</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="(item, idx) in activeWeakList" :key="item.ngram">
+                                    <tr
+                                        v-for="(item, idx) in activeWeakList"
+                                        :key="item.ngram"
+                                        :class="['weakness-row-clickable', { 'weakness-row-relegated': item.isRelegated }]"
+                                        @click="openNgramHistory(item)"
+                                        title="Click to view all-time evolution & progression"
+                                        role="button"
+                                        tabindex="0"
+                                        @keyup.enter="openNgramHistory(item)"
+                                    >
                                         <td class="text-muted">#{{ idx + 1 }}</td>
-                                        <td class="font-code font-weight-bold text-accent">{{ item.ngram }}</td>
+                                        <td>
+                                            <span class="font-code font-weight-bold text-accent">{{ item.ngram }}</span>
+                                            <span v-if="item.isRelegated" class="badge badge-secondary ml-1" style="font-size: 0.65rem;" title="Under statistical threshold">
+                                                {{ item.totalCount }}/20
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span :class="['badge font-code', item.tierClass]" style="font-size: 0.72rem; padding: 0.25rem 0.45rem;">
+                                                {{ item.tierLabel }} ({{ item.priorityScore }})
+                                            </span>
+                                        </td>
                                         <td>
                                             <div class="fluidity-bar-track">
                                                 <div class="fluidity-bar-fill" :style="{ width: item.barPct + '%', backgroundColor: item.barColor }"></div>
                                             </div>
                                         </td>
-                                        <td>{{ item.avgTime }}ms</td>
+                                        <td>
+                                            <span class="font-weight-bold text-main">{{ item.avgTime }}ms</span>
+                                            <span class="text-muted small ml-1 font-code">(~{{ item.wpm }} WPM)</span>
+                                        </td>
                                         <td>
                                             <span :class="item.errors > 0 ? 'text-danger font-weight-bold' : 'text-muted'">
                                                 {{ item.errorRate }}% ({{ item.errors }}/{{ item.count }})
                                             </span>
                                         </td>
+                                        <td class="text-center text-muted">
+                                            <i class="fa fa-line-chart text-accent" aria-hidden="true"></i>
+                                        </td>
                                     </tr>
                                     <tr v-if="!activeWeakList.length">
-                                        <td colspan="5" class="text-center text-muted py-4">
+                                        <td colspan="7" class="text-center text-muted py-4">
                                             No tracked weak links found. Complete tests to build stats!
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-2 px-1 text-muted" style="font-size: 0.72rem;">
+                            <span><i class="fa fa-info-circle mr-1" aria-hidden="true"></i>Click any row to open the all-time evolution chart.</span>
+                            <span>{{ activeListAvailableCount }} items tracked</span>
                         </div>
 
                     </div>
@@ -650,6 +684,381 @@
                             <i class="fa fa-trash mr-1" aria-hidden="true"></i> Reset {{ readableCorpusName }} Stats
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-dismiss="modal">Close</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: DRILL CONFIGURATION POPUP -->
+        <div id="drill-modal" class="modal fade" role="dialog" tabindex="-1" aria-labelledby="drillModalTitle" aria-modal="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content custom-modal-box">
+
+                    <div class="modal-header border-0 pb-1">
+                        <h5 class="modal-title font-weight-bold text-accent" id="drillModalTitle">
+                            <i class="fa fa-crosshairs mr-2" aria-hidden="true"></i>Drill Configuration
+                        </h5>
+                        <button type="button" class="close text-muted" data-dismiss="modal" aria-label="Close modal">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body pt-2">
+
+                        <!-- 1. Target N-gram Type Selector -->
+                        <div class="mb-3">
+                            <label class="block-title">Target N-gram Type</label>
+                            <div class="btn-group btn-group-sm w-100" role="group" aria-label="N-gram type">
+                                <button
+                                    type="button"
+                                    :class="['btn', drillNgramType === 'bigrams' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillNgramType = 'bigrams'"
+                                >
+                                    Bigrams ({{ weakBigrams.length }})
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillNgramType === 'trigrams' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillNgramType = 'trigrams'"
+                                >
+                                    Trigrams ({{ weakTrigrams.length }})
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillNgramType === 'tetragrams' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillNgramType = 'tetragrams'"
+                                >
+                                    Tetragrams ({{ weakTetragrams.length }})
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Drill Mode Selector -->
+                        <div class="mb-3">
+                            <label class="block-title">Drill Mode</label>
+                            <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Drill mode">
+                                <button
+                                    type="button"
+                                    :class="['btn', drillMode === 'classic' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillMode = 'classic'"
+                                >
+                                    Classic
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillMode === 'sandwich' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillMode = 'sandwich'"
+                                >
+                                    Sandwich
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillMode === 'ladder' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillMode = 'ladder'"
+                                >
+                                    Ladder
+                                </button>
+                            </div>
+                            <small class="text-muted d-block font-italic">{{ drillModeDescription }}</small>
+                        </div>
+
+                        <!-- 3. Target Scope & Filters -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="block-title mb-0">Target Scope &amp; Filters</label>
+                                <small class="text-muted">{{ drillPoolCount }} matching available</small>
+                            </div>
+                            <div class="btn-group btn-group-sm w-100 mb-2">
+                                <button
+                                    v-for="qty in [10, 25, 50, 100, 200]"
+                                    :key="qty"
+                                    type="button"
+                                    :class="['btn', drillScope === qty ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillScope = qty"
+                                >
+                                    Top {{ qty }}
+                                </button>
+                            </div>
+
+                            <!-- Dedicated Caps & Punct Toggles for Drill -->
+                            <div class="d-flex gap-2" style="gap: 0.5rem;">
+                                <button
+                                    type="button"
+                                    :class="['btn btn-sm flex-fill', drillFilterCaps ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillFilterCaps = !drillFilterCaps"
+                                    title="Toggle uppercase n-grams in drill generation"
+                                >
+                                    <i :class="['fa mr-1', drillFilterCaps ? 'fa-check' : 'fa-times']"></i> Caps
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn btn-sm flex-fill', drillFilterPunct ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillFilterPunct = !drillFilterPunct"
+                                    title="Toggle punctuation in drill generation"
+                                >
+                                    <i :class="['fa mr-1', drillFilterPunct ? 'fa-check' : 'fa-times']"></i> Punct
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 4. Steppers: Combination, Repetition, Min WPM, Min Accuracy -->
+                        <div class="mb-2">
+                            <label class="block-title">Rules &amp; Thresholds</label>
+                            <div class="interactive-rules-list">
+                                <div class="rule-stepper-row">
+                                    <label class="rule-name">Combination</label>
+                                    <div class="stepper-box">
+                                        <button type="button" class="step-btn" @click="drillConfig.combination = Math.max(1, drillConfig.combination - 1)">−</button>
+                                        <input v-model.number="drillConfig.combination" type="number" min="1" max="1000">
+                                        <button type="button" class="step-btn" @click="drillConfig.combination = Math.min(1000, drillConfig.combination + 1)">+</button>
+                                    </div>
+                                </div>
+
+                                <div class="rule-stepper-row">
+                                    <label class="rule-name">Repetition</label>
+                                    <div class="stepper-box">
+                                        <button type="button" class="step-btn" @click="drillConfig.repetition = Math.max(1, drillConfig.repetition - 1)">−</button>
+                                        <input v-model.number="drillConfig.repetition" type="number" min="1" max="1000">
+                                        <button type="button" class="step-btn" @click="drillConfig.repetition = Math.min(1000, drillConfig.repetition + 1)">+</button>
+                                    </div>
+                                </div>
+
+                                <div class="rule-stepper-row">
+                                    <label class="rule-name">Min WPM</label>
+                                    <div class="stepper-box">
+                                        <button type="button" class="step-btn" @click="drillConfig.minimumWPM = Math.max(1, drillConfig.minimumWPM - 5)">−</button>
+                                        <input v-model.number="drillConfig.minimumWPM" type="number" min="1" max="500">
+                                        <button type="button" class="step-btn" @click="drillConfig.minimumWPM = Math.min(500, drillConfig.minimumWPM + 5)">+</button>
+                                    </div>
+                                </div>
+
+                                <div class="rule-stepper-row">
+                                    <label class="rule-name">Min Accuracy %</label>
+                                    <div class="stepper-box">
+                                        <button type="button" class="step-btn" @click="drillConfig.minimumAccuracy = Math.max(1, drillConfig.minimumAccuracy - 1)">−</button>
+                                        <input v-model.number="drillConfig.minimumAccuracy" type="number" min="1" max="100">
+                                        <button type="button" class="step-btn" @click="drillConfig.minimumAccuracy = Math.min(100, drillConfig.minimumAccuracy + 1)">+</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer border-0 pt-1 d-flex justify-content-between">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="cancelDrillConfig">
+                            <i class="fa fa-arrow-left mr-1"></i> Back to Weaknesses
+                        </button>
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-accent font-weight-bold px-3"
+                            :disabled="drillPoolCount === 0"
+                            @click="launchConfiguredDrill"
+                        >
+                            <i class="fa fa-play mr-1"></i> Launch Drill
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: PER-NGRAM EVOLUTION & ALL-TIME PROGRESSION -->
+        <div id="ngram-history-modal" class="modal fade" role="dialog" tabindex="-1" aria-labelledby="ngramHistoryModalTitle" aria-modal="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content custom-modal-box">
+
+                    <div class="modal-header border-0 pb-1 d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center flex-wrap">
+                            <h5 class="modal-title font-weight-bold text-accent mb-0 mr-2" id="ngramHistoryModalTitle">
+                                Evolution: <span class="font-code text-target px-2 py-1 rounded bg-dark border border-secondary">{{ selectedNgramData?.ngram }}</span>
+                            </h5>
+                            <span class="badge badge-accent-subtle mr-1">{{ readableCorpusName }}</span>
+                            <span class="badge badge-secondary">{{ selectedNgramData?.len }}-gram</span>
+                        </div>
+                        <button type="button" class="close text-muted" data-dismiss="modal" aria-label="Close modal">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body pt-2" v-if="selectedNgramData">
+
+                        <!-- KPI summary cards -->
+                        <div class="row no-gutters mb-3" style="gap: 0.5rem; display: flex;">
+                            <div class="col drill-config-card p-2 text-center">
+                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Total Occurrences</small>
+                                <strong class="font-code text-main" style="font-size: 1.15rem;">{{ selectedNgramData.totalCount }}</strong>
+                            </div>
+                            <div class="col drill-config-card p-2 text-center">
+                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Recent Avg Latency</small>
+                                <strong class="font-code text-accent" style="font-size: 1.15rem;">{{ selectedNgramData.avgTime }}ms</strong>
+                            </div>
+                            <div class="col drill-config-card p-2 text-center">
+                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Recent Error Rate</small>
+                                <strong :class="['font-code', selectedNgramData.errors > 0 ? 'text-danger' : 'text-main']" style="font-size: 1.15rem;">
+                                    {{ selectedNgramData.errorRate }}%
+                                </strong>
+                            </div>
+                            <div class="col drill-config-card p-2 text-center">
+                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Priority Index</small>
+                                <strong class="font-code text-target" style="font-size: 1.15rem;">{{ selectedNgramData.priorityScore }}</strong>
+                            </div>
+                            <div class="col drill-config-card p-2 text-center" v-if="selectedNgramData.hasPoints">
+                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Trend</small>
+                                <strong :class="selectedNgramData.trendClass" style="font-size: 0.95rem;">
+                                    <i :class="['fa mr-1', selectedNgramData.trendIcon]" aria-hidden="true"></i>{{ selectedNgramData.trendLabel }}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <!-- Calibration / Early Stage Notice (< 50 occurrences) -->
+                        <div v-if="selectedNgramData.totalCount < 50" class="p-3 drill-config-card mb-3 text-center">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small font-weight-bold text-accent">
+                                    <i class="fa fa-hourglass-half mr-1"></i>Calibration Phase (5-sample checkpoints)
+                                </span>
+                                <span class="small font-code text-muted">{{ selectedNgramData.totalCount }} / 50 samples</span>
+                            </div>
+                            <div class="progress mb-2" style="height: 6px; background-color: var(--bg-main);">
+                                <div
+                                    class="progress-bar bg-warning"
+                                    role="progressbar"
+                                    :style="{ width: Math.min(100, Math.round((selectedNgramData.totalCount / 50) * 100)) + '%' }"
+                                ></div>
+                            </div>
+                            <small class="text-muted d-block">
+                                {{ 50 - selectedNgramData.totalCount }} more occurrences required to unlock full All-Time overview. Displaying recorded 5-occurrence blocks below.
+                            </small>
+                        </div>
+
+                        <!-- SVG Progression Chart (Requires at least 1 recorded block of 5) -->
+                        <div v-if="selectedNgramData.hasPoints" class="drill-config-card p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="small font-weight-bold text-muted text-uppercase mr-3">
+                                        Progression ({{ selectedNgramData.viewMode === 'recent' ? 'Recent 100 Occurrences' : 'All-Time Overview' }})
+                                    </span>
+                                    <!-- View Mode Toggle (Only when totalCount >= 50) -->
+                                    <div class="btn-group btn-group-sm" v-if="selectedNgramData.totalCount >= 50">
+                                        <button
+                                            type="button"
+                                            :class="['btn py-0 px-2 btn-xs', evolutionViewMode === 'recent' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                            @click="setEvolutionViewMode('recent')"
+                                        >
+                                            Recent 100
+                                        </button>
+                                        <button
+                                            type="button"
+                                            :class="['btn py-0 px-2 btn-xs', evolutionViewMode === 'alltime' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                            @click="setEvolutionViewMode('alltime')"
+                                        >
+                                            All-Time
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <span class="small text-muted font-code">
+                                    Best: <strong class="text-accent">{{ selectedNgramData.bestBlockTime }}ms</strong> &bull;
+                                    Worst: <strong class="text-danger">{{ selectedNgramData.worstBlockTime }}ms</strong>
+                                </span>
+                            </div>
+
+                            <div class="ngram-chart-container">
+                                <svg viewBox="0 0 600 220" class="ngram-chart-svg" preserveAspectRatio="none">
+                                    <!-- Horizontal Gridlines & Y-axis Labels -->
+                                    <line
+                                        v-for="g in selectedNgramData.chart.gridY"
+                                        :key="g.y"
+                                        x1="45"
+                                        :y1="g.y"
+                                        x2="585"
+                                        :y2="g.y"
+                                        class="chart-grid-line"
+                                    />
+                                    <text
+                                        v-for="g in selectedNgramData.chart.gridY"
+                                        :key="'lbl-' + g.y"
+                                        x="40"
+                                        :y="g.y + 3"
+                                        class="chart-axis-label"
+                                    >
+                                        {{ g.val }}ms
+                                    </text>
+
+                                    <!-- Personal Baseline Guideline -->
+                                    <line
+                                        v-if="selectedNgramData.chart.baselineY"
+                                        x1="45"
+                                        :y1="selectedNgramData.chart.baselineY"
+                                        x2="585"
+                                        :y2="selectedNgramData.chart.baselineY"
+                                        class="chart-baseline-line"
+                                        stroke-dasharray="3,3"
+                                    />
+
+                                    <!-- Area Fill Underneath Latency Curve -->
+                                    <polygon :points="selectedNgramData.chart.areaPoints" class="chart-area-fill" />
+
+                                    <!-- Latency Curve -->
+                                    <polyline :points="selectedNgramData.chart.linePoints" class="chart-latency-line" />
+
+                                    <!-- Data Points (Circles) -->
+                                    <circle
+                                        v-for="(pt, pIdx) in selectedNgramData.chart.points"
+                                        :key="'pt-' + pIdx"
+                                        :cx="pt.x"
+                                        :cy="pt.y"
+                                        :r="hoveredPointIdx === pIdx ? 6 : 4"
+                                        :class="['chart-point', { 'chart-point-error': pt.errorCount > 0, 'chart-point-active': hoveredPointIdx === pIdx }]"
+                                        @mouseenter="hoveredPointIdx = pIdx"
+                                        @mouseleave="hoveredPointIdx = null"
+                                    />
+                                </svg>
+
+                                <!-- Interactive Tooltip -->
+                                <div
+                                    v-if="hoveredPoint"
+                                    class="chart-tooltip shadow rounded p-2"
+                                    :style="{ left: hoveredPoint.tooltipLeft + 'px', top: hoveredPoint.tooltipTop + 'px' }"
+                                >
+                                    <div class="small font-weight-bold text-accent">{{ hoveredPoint.label }}</div>
+                                    <div class="small text-main">Avg Latency: <strong>{{ hoveredPoint.avgTime }}ms</strong> <span class="text-muted font-code">(~{{ hoveredPoint.wpm }} WPM)</span></div>
+                                    <div class="small" :class="hoveredPoint.errorCount > 0 ? 'text-danger font-weight-bold' : 'text-muted'">
+                                        Errors: {{ hoveredPoint.errorCount }} / {{ hoveredPoint.count }} ({{ hoveredPoint.errorRate }}%)
+                                    </div>
+                                    <div class="text-muted" style="font-size: 0.65rem;">{{ hoveredPoint.dateFormatted }}</div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-secondary small text-muted">
+                                <span><span class="chart-legend-dot bg-accent"></span> Latency per checkpoint</span>
+                                <span><span class="chart-legend-dot bg-danger"></span> Block contains errors</span>
+                                <span class="font-italic">Hover point for details</span>
+                            </div>
+                        </div>
+
+                        <div v-else class="p-4 text-center drill-config-card mb-3">
+                            <i class="fa fa-info-circle fa-2x text-muted mb-2 d-block"></i>
+                            <h6 class="font-weight-bold text-accent">Gathering First Block</h6>
+                            <p class="small text-muted mb-0">
+                                Need at least 5 occurrences to record your first evolution checkpoint (currently {{ selectedNgramData.totalCount }} / 5).
+                            </p>
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="backToWeaknessFromHistory">
+                            <i class="fa fa-arrow-left mr-1"></i> Back to Weaknesses
+                        </button>
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-accent font-weight-bold"
+                            @click="launchSingleNgramDrill(selectedNgramData?.ngram)"
+                        >
+                            <i class="fa fa-crosshairs mr-1"></i> Practice This N-gram
+                        </button>
                     </div>
 
                 </div>
