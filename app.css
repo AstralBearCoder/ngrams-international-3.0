@@ -568,10 +568,10 @@ textarea,
 
 .sidebar-scrollable-content {
     width: 260px;
-    padding: 1rem;
+    padding: 0.85rem;
     display: flex;
     flex-direction: column;
-    gap: 1.15rem;
+    gap: 0.95rem;
     overflow-y: auto;
     overflow-x: hidden;
     height: 100%;
@@ -633,7 +633,13 @@ textarea,
     color: var(--text-muted);
 }
 
-.variants-grid, .scope-grid-2x2 {
+.variants-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+}
+
+.scope-grid-2x2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.4rem;
@@ -669,11 +675,17 @@ textarea,
     font-weight: 700;
 }
 
-/* NO RESET CARD */
+/* NO RESET CARD (SLIM & CLEAN) */
 .no-reset-toggle-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.45rem 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     transition: border-color 0.2s ease, background-color 0.2s ease;
+    user-select: none;
 }
 
 .no-reset-toggle-card.active-no-reset {
@@ -681,9 +693,31 @@ textarea,
     background-color: rgba(244, 63, 94, 0.08);
 }
 
-.no-reset-hint {
-    font-size: 0.68rem;
-    line-height: 1.25;
+.no-reset-toggle-card .custom-switch {
+    padding-left: 2.1rem !important;
+    height: 1.15rem;
+    margin: 0 !important;
+    display: flex;
+    align-items: center;
+}
+
+.no-reset-toggle-card .custom-switch .custom-control-label {
+    height: 1.15rem;
+    width: 0;
+    margin: 0;
+    padding: 0;
+    display: block;
+    line-height: 1.15rem;
+}
+
+.no-reset-toggle-card .custom-switch .custom-control-label::before {
+    top: 0 !important;
+    left: -2.1rem !important;
+}
+
+.no-reset-toggle-card .custom-switch .custom-control-label::after {
+    top: 2px !important;
+    left: calc(-2.1rem + 2px) !important;
 }
 
 .interactive-rules-list {
@@ -1000,13 +1034,24 @@ kbd {
     background-color: var(--accent-dim) !important;
 }
 
-/* Subtle dimming for non-confirmed error candidates */
 .weakness-row-relegated {
     opacity: 0.55;
 }
 
 .weakness-row-relegated:hover {
     opacity: 0.9;
+}
+
+/* Pastille: Exact Corpus Rank (#XX) */
+.badge-corpus-rank {
+    background-color: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    font-size: 0.68rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle;
 }
 
 /* Priority Tier Badges */

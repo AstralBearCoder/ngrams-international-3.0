@@ -1,11 +1,13 @@
 /**
  * ngramInternational — Core Typing, Statistical Weakness & Evolution Engine
- * v6.1 Relative Baseline & Precision Evolution Engine:
- * - Deterministic word ranges with multi-word burst boundary handling.
- * - Personalized baseline calculation (Baseline-relative difficulty scoring).
- * - Calibrated evolution tracking in 5-sample checkpoints with dual view modes (Recent 100 vs All-Time).
- * - Full modal-driven targeted drill configurator with dedicated Caps & Punctuation switches.
- * - Dual latency & WPM equivalent rendering.
+ * v6.2 Multilingual Precision Engine:
+ * - Atomic 27th letter ('qu=1') support with exact unit tokenization across all pyramid levels.
+ * - Strict 500-scope dataset loader ignoring tokens with spaces or underscores.
+ * - Isolated weakness statistics partitions for standard vs 'qu=1' modes.
+ * - Individual lesson deck preservation across Bigrams, Trigrams, Tetragrams, and Words.
+ * - Deterministic profile import and data fusion (no duplicate profiles, no '(Restored)' prefix).
+ * - Exact corpus frequency rank badge (#XX) on weakness records.
+ * - Compact No Reset mode positioned between Corpus and Source.
  */
 
 const LANGUAGE_ANCHORS = Object.freeze({
@@ -26,9 +28,9 @@ const PUNCT_REGEX = /\p{P}/u;
 const TERMINAL_CLAUSE_PUNCT = /^[,.:;?!]$/u;
 const TERMINAL_CLAUSE_REGEX = /[,.:;?!]+$/u;
 
-const MAX_SCOPE = 200;              // Highest "Top N" scope in the UI
-const NGRAM_POOL_SIZE = 200;        // Pool size loaded from n-gram TSV files
-const CHUNK_SIZE = 5;               // Granular 5-occurrence checkpoints for all-time evolution
+const MAX_SCOPE = 500;              // Highest "Top N" scope in the UI (50, 100, 200, 500)
+const NGRAM_POOL_SIZE = 500;        // Pool size loaded from certified n-gram files
+const CHUNK_SIZE = 5;               // Granular 5-occurrence checkpoints for evolution
 const MIN_CONFIRMED_SAMPLES = 5;    // Minimum samples required to confirm a weakness
 const MIN_ERROR_SORT_SAMPLES = 20;  // Threshold to avoid fluke 100% error rankings
 const MAX_HISTORY_BLOCKS = 350;     // Maximum stored checkpoints per n-gram (~1,750 occurrences)
@@ -88,8 +90,54 @@ const safeStorage = {
 };
 
 // =============================================================================
-// HELPERS
+// ATOMIC DIGRAPH & UNIT TOKENIZATION HELPERS ("qu=1" Support)
 // =============================================================================
+
+function tokenizeAtomicUnits(text, quAsOne = false) {
+    if (!text) return [];
+    if (!quAsOne) return Array.from(text);
+
+    if (!text.includes('q') && !text.includes('Q')) {
+        return Array.from(text);
+    }
+
+    const units = [];
+    let i = 0;
+    const len = text.length;
+    while (i < len) {
+        if (i + 1 < len && (text[i] === 'q' || text[i] === 'Q') && (text[i + 1] === 'u' || text[i + 1] === 'U')) {
+            units.push(text.substring(i, i + 2));
+            i += 2;
+        } else {
+            units.push(text[i]);
+            i++;
+        }
+    }
+    return units;
+}
+
+function countAtomicUnits(text, quAsOne = false) {
+    if (!text) return 0;
+    if (!quAsOne) return text.length;
+
+    if (!text.includes('q') && !text.includes('Q')) {
+        return text.length;
+    }
+
+    let count = 0;
+    let i = 0;
+    const len = text.length;
+    while (i < len) {
+        if (i + 1 < len && (text[i] === 'q' || text[i] === 'Q') && (text[i + 1] === 'u' || text[i + 1] === 'U')) {
+            count++;
+            i += 2;
+        } else {
+            count++;
+            i++;
+        }
+    }
+    return count;
+}
 
 function sanitizePositiveInt(value) {
     const n = Math.floor(Number(value));
@@ -97,39 +145,54 @@ function sanitizePositiveInt(value) {
     return Math.min(n, MAX_PHRASE_PARAM);
 }
 
-function parseTokenLine(rawLine, expectedLength) {
+function cleanProfileName(rawName) {
+    if (!rawName) return 'Main User';
+    return String(rawName).replace(/\s*\(\s*Restored\s*\)/gi, '').trim() || 'Main User';
+}
+
+function parseTokenLine(rawLine, expectedUnits = null, quAsOne = false) {
     if (!rawLine) return null;
     const tabIdx = rawLine.indexOf('\t');
     let token = tabIdx === -1 ? rawLine : rawLine.substring(0, tabIdx);
     token = token.replace(/[\r\n]/g, '').trim();
+
+    // Strict discard for empty tokens, any whitespace, or underscores
     if (!token || /\s/.test(token) || token.includes('_')) return null;
-    if (expectedLength !== null && token.length !== expectedLength) return null;
+
+    if (expectedUnits !== null) {
+        const units = countAtomicUnits(token, quAsOne);
+        if (units !== expectedUnits) return null;
+    }
     return token;
 }
 
-function buildNgramPyramid(raw2, raw3, raw4) {
+function buildNgramPyramid(raw2, raw3, raw4, quAsOne = false) {
     const tetragramsSet = new Set(raw4.slice(0, NGRAM_POOL_SIZE));
-
     const trigramsSet = new Set(raw3.slice(0, NGRAM_POOL_SIZE));
+
     tetragramsSet.forEach(qg => {
-        if (qg.length === 4) {
-            trigramsSet.add(qg.substring(0, 3));
-            trigramsSet.add(qg.substring(1, 4));
+        const units = tokenizeAtomicUnits(qg, quAsOne);
+        if (units.length === 4) {
+            trigramsSet.add(units.slice(0, 3).join(''));
+            trigramsSet.add(units.slice(1, 4).join(''));
         }
     });
 
     const bigramsSet = new Set(raw2.slice(0, NGRAM_POOL_SIZE));
     trigramsSet.forEach(tg => {
-        if (tg.length === 3) {
-            bigramsSet.add(tg.substring(0, 2));
-            bigramsSet.add(tg.substring(1, 3));
+        const units = tokenizeAtomicUnits(tg, quAsOne);
+        if (units.length === 3) {
+            bigramsSet.add(units.slice(0, 2).join(''));
+            bigramsSet.add(units.slice(1, 3).join(''));
         }
     });
+
     tetragramsSet.forEach(qg => {
-        if (qg.length === 4) {
-            bigramsSet.add(qg.substring(0, 2));
-            bigramsSet.add(qg.substring(1, 3));
-            bigramsSet.add(qg.substring(2, 4));
+        const units = tokenizeAtomicUnits(qg, quAsOne);
+        if (units.length === 4) {
+            bigramsSet.add(units.slice(0, 2).join(''));
+            bigramsSet.add(units.slice(1, 3).join(''));
+            bigramsSet.add(units.slice(2, 4).join(''));
         }
     });
 
@@ -147,13 +210,13 @@ function emptyWeakStats() {
     return { meta: { completedTests: 0, totalKeystrokes: 0, lastRun: null }, ngrams: {} };
 }
 
-function unpackNgramEntry(ngram, obj) {
+function unpackNgramEntry(ngram, obj, quAsOne = false) {
     if (!obj || typeof obj !== 'object') return null;
-    const len = Number.isInteger(obj.len) ? obj.len : ngram.length;
+    const len = Number.isInteger(obj.len) ? obj.len : countAtomicUnits(ngram, quAsOne);
     let samples = [];
     const history = [];
 
-    // 1. Unpack existing history blocks
+    // 1. Unpack history
     if (Array.isArray(obj.history)) {
         for (const h of obj.history) {
             if (h && Number.isFinite(h.avgTime)) {
@@ -178,7 +241,7 @@ function unpackNgramEntry(ngram, obj) {
         }
     }
 
-    // 2. Unpack recent raw samples
+    // 2. Unpack recent samples
     if (Array.isArray(obj.samples)) {
         for (const s of obj.samples) {
             if (s && Number.isFinite(s.time) && s.time >= 0) {
@@ -195,7 +258,7 @@ function unpackNgramEntry(ngram, obj) {
         }
     }
 
-    // 3. Checkpoint into 5-occurrence historical chunks
+    // 3. Checkpoint into chunks if needed
     if (samples.length >= CHUNK_SIZE) {
         while (samples.length >= CHUNK_SIZE) {
             const chunk = samples.splice(0, CHUNK_SIZE);
@@ -220,7 +283,7 @@ function unpackNgramEntry(ngram, obj) {
     return { len, samples, history };
 }
 
-function normalizeWeakStats(parsed) {
+function normalizeWeakStats(parsed, quAsOne = false) {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
 
     const hasEnvelope = !!(parsed.meta && parsed.ngrams && typeof parsed.ngrams === 'object');
@@ -235,7 +298,7 @@ function normalizeWeakStats(parsed) {
 
     for (const [ngram, entry] of Object.entries(rawNgrams)) {
         if (ngram === '__proto__') continue;
-        const unpacked = unpackNgramEntry(ngram, entry);
+        const unpacked = unpackNgramEntry(ngram, entry, quAsOne);
         if (unpacked) stats.ngrams[ngram] = unpacked;
     }
     return stats;
@@ -280,7 +343,7 @@ const ngramTypeConfig = {
 
     data() {
         return {
-            VERSION: 6.1,
+            VERSION: 6.2,
 
             showThemeMenu: false,
             showAudioMenu: false,
@@ -291,12 +354,12 @@ const ngramTypeConfig = {
             currentProfileId: 'default',
 
             themes: [
+                { id: 'dracula',         label: 'Dracula',         color: '#ff79c6', isLight: false },
                 { id: 'emerald',         label: 'Emerald',         color: '#34d399', isLight: false },
                 { id: 'carbon',          label: 'Carbon',          color: '#facc15', isLight: false },
                 { id: 'nord',            label: 'Nord',            color: '#88c0d0', isLight: false },
                 { id: 'paper',           label: 'Paper',           color: '#c25e1a', isLight: false },
                 { id: 'midnight',        label: 'Midnight',        color: '#cba6f7', isLight: false },
-                { id: 'dracula',         label: 'Dracula',         color: '#ff79c6', isLight: false },
                 { id: 'gruvbox',         label: 'Gruvbox',         color: '#fabd2f', isLight: false },
                 { id: 'tokyo-night',     label: 'Tokyo Night',     color: '#7aa2f7', isLight: false },
                 { id: 'solarized',       label: 'Solarized',       color: '#2aa198', isLight: false },
@@ -325,20 +388,16 @@ const ngramTypeConfig = {
             words: [],
             custom_words: [],
 
-            weakStatsData: {
-                meta: { completedTests: 0, totalKeystrokes: 0, lastRun: null },
-                ngrams: {}
-            },
-
+            weakStatsData: emptyWeakStats(),
             currentTestStaging: {},
 
             weakBigrams: [],
             weakTrigrams: [],
             weakTetragrams: [],
             activeWeakTab: 'bigrams',
-            weaknessSortBy: 'priority', // 'priority' | 'latency' | 'error'
+            weaknessSortBy: 'priority',
 
-            // Drill configuration modal state (Includes dedicated Caps & Punct toggles)
+            // Drill configuration modal state
             drillNgramType: 'bigrams',
             drillScope: 25,
             drillMode: 'classic',
@@ -353,7 +412,7 @@ const ngramTypeConfig = {
 
             // Per-ngram evolution modal state
             selectedNgramData: null,
-            evolutionViewMode: 'recent', // 'recent' (100 occs) | 'alltime'
+            evolutionViewMode: 'recent',
             hoveredPointIdx: null,
 
             currentWordIdx: 0,
@@ -366,10 +425,11 @@ const ngramTypeConfig = {
             data: {
                 sidebarOpen: true,
                 source: 'bigrams',
-                theme: 'emerald',
+                theme: 'dracula',
                 selectedCorpus: 'Ngram_English',
                 includePunctuation: true,
                 includeUppercase: true,
+                quAsOneChar: false,
                 noResetMode: false,
 
                 soundCorrectLetterEnabled: true,
@@ -461,7 +521,7 @@ const ngramTypeConfig = {
             if (avg && avg >= 20) return avg;
             const targetMin = this.dataSource?.minimumWPM;
             if (targetMin && targetMin >= 20) return targetMin;
-            return 45; // Standard typist benchmark default
+            return 45;
         },
         activeNgramLength() {
             if (this.activeWeakTab === 'bigrams') return 2;
@@ -477,8 +537,10 @@ const ngramTypeConfig = {
             return Math.round((12000 * this.activeNgramLength) / this.effectiveBaselineWpm);
         },
         categoryFolder() {
+            const prefix = this.data.quAsOneChar ? 'Qu_As_1_Character_Normal_' : 'Normal_';
             const casePart = this.data.includeUppercase ? 'All_Cases_Alphanumeric' : 'Lowercase_Alphanumeric';
-            return this.data.includePunctuation ? `${casePart}_Punctuation` : casePart;
+            const punctPart = this.data.includePunctuation ? '_Punctuation' : '';
+            return `${prefix}${casePart}${punctPart}`;
         },
         currentCorpusMeta() {
             return this.availableCorpora.find(c => c.id === this.data.selectedCorpus) || { id: this.data.selectedCorpus, label: 'Unknown', lang: 'eng' };
@@ -540,23 +602,6 @@ const ngramTypeConfig = {
             this.applyTheme(newTheme);
             this.save();
         },
-        async 'data.selectedCorpus'() {
-            this.currentTestStaging = {};
-            await this.reloadNgramData();
-            this.loadLanguageWeakStats();
-            this.resetCurrentPhraseMetrics();
-        },
-        async 'data.source'(newSource) {
-            if (this._suppressSourceWatcher) return;
-
-            this.currentTestStaging = {};
-            if (newSource === 'custom_words') {
-                this.refreshPhrases();
-            } else {
-                await this.reloadNgramData();
-            }
-            this.resetCurrentPhraseMetrics();
-        },
         'data.noResetMode'() { this.save(); },
         'data.soundCorrectLetterEnabled'() { this.save(); },
         'data.soundIncorrectLetterEnabled'() { this.save(); },
@@ -598,9 +643,10 @@ const ngramTypeConfig = {
             $('#fork-disclaimer-modal').modal('show');
         }
 
-        this.applyTheme(this.data.theme || 'emerald');
+        this.applyTheme(this.data.theme || 'dracula');
 
-        await this.reloadNgramData();
+        // Initial corpus load while preserving saved lesson deck if present
+        await this.reloadNgramData({ preserveExistingDeck: true });
         this.loadLanguageWeakStats();
 
         this.$inputEl = $('#input-typing');
@@ -653,10 +699,18 @@ const ngramTypeConfig = {
         },
 
         createProfile() {
-            const name = (this.newProfileInput || '').trim();
-            if (!name) return;
+            const clean = cleanProfileName(this.newProfileInput);
+            if (!this.newProfileInput.trim()) return;
+
+            const existing = this.profiles.find(p => cleanProfileName(p.name).toLowerCase() === clean.toLowerCase());
+            if (existing) {
+                this.switchProfile(existing.id);
+                this.newProfileInput = '';
+                return;
+            }
+
             const newId = `usr_${Date.now()}`;
-            this.profiles.push({ id: newId, name, createdAt: Date.now() });
+            this.profiles.push({ id: newId, name: clean, createdAt: Date.now() });
             this.newProfileInput = '';
             this.saveProfiles();
             this.switchProfile(newId);
@@ -691,7 +745,7 @@ const ngramTypeConfig = {
         },
 
         removeProfileStats(id) {
-            const keys = safeStorage.keysWithPrefix(this.getWeakStorageKey(id, ''));
+            const keys = safeStorage.keysWithPrefix(`ngramWeakStats_u_${id}_l_`);
             for (let i = 0; i < keys.length; i++) {
                 safeStorage.remove(keys[i]);
             }
@@ -704,18 +758,19 @@ const ngramTypeConfig = {
                 timestamp: new Date().toISOString(),
                 stats: {}
             };
-            const prefix = this.getWeakStorageKey(this.currentProfileId, '');
+            const prefix = `ngramWeakStats_u_${this.currentProfileId}_l_`;
             const keys = safeStorage.keysWithPrefix(prefix);
             for (let i = 0; i < keys.length; i++) {
                 const stored = safeStorage.get(keys[i], null);
                 if (stored) backup.stats[keys[i].slice(prefix.length)] = stored;
             }
 
+            const cleanName = cleanProfileName(this.currentProfile.name);
             const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `ngram-${this.currentProfile.name.toLowerCase().replace(/\s+/g, '_')}-backup.json`;
+            a.download = `ngram-${cleanName.toLowerCase().replace(/\s+/g, '_')}-backup.json`;
             a.click();
             URL.revokeObjectURL(url);
         },
@@ -733,27 +788,48 @@ const ngramTypeConfig = {
                         return;
                     }
 
-                    const importedName = String(parsed.profile.name || 'Imported User').slice(0, 60);
-                    const newId = `usr_${Date.now()}`;
+                    const cleanName = cleanProfileName(parsed.profile.name);
+                    const existingProfile = this.profiles.find(p => cleanProfileName(p.name).toLowerCase() === cleanName.toLowerCase());
 
-                    let skipped = 0;
-                    const validEntries = [];
+                    let targetId;
+                    let isMerged = false;
+
+                    if (existingProfile) {
+                        targetId = existingProfile.id;
+                        isMerged = true;
+                    } else {
+                        targetId = `usr_${Date.now()}`;
+                        this.profiles.push({ id: targetId, name: cleanName, createdAt: Date.now() });
+                    }
+
                     if (parsed.stats && typeof parsed.stats === 'object') {
-                        for (const [lang, langStats] of Object.entries(parsed.stats)) {
-                            const normalized = /^[A-Za-z0-9_-]{1,16}$/.test(lang) ? normalizeWeakStats(langStats) : null;
-                            if (normalized) validEntries.push([lang, normalized]);
-                            else skipped++;
+                        for (const [langSuffix, langStats] of Object.entries(parsed.stats)) {
+                            if (!/^[A-Za-z0-9_-]{1,24}$/.test(langSuffix)) continue;
+
+                            const key = `ngramWeakStats_u_${targetId}_l_${langSuffix}`;
+                            const isQuLang = langSuffix.endsWith('_qu');
+                            const importedNormalized = normalizeWeakStats(langStats, isQuLang);
+                            if (!importedNormalized) continue;
+
+                            if (isMerged) {
+                                const currentRaw = safeStorage.get(key, null);
+                                const currentNormalized = normalizeWeakStats(currentRaw, isQuLang) || emptyWeakStats();
+                                const fused = this.mergeNormalizedStats(currentNormalized, importedNormalized);
+                                safeStorage.set(key, serializeWeakStats(fused));
+                            } else {
+                                safeStorage.set(key, serializeWeakStats(importedNormalized));
+                            }
                         }
                     }
 
-                    this.profiles.push({ id: newId, name: `${importedName} (Restored)`, createdAt: Date.now() });
-                    for (const [lang, normalized] of validEntries) {
-                        safeStorage.set(this.getWeakStorageKey(newId, lang), serializeWeakStats(normalized));
-                    }
-
                     this.saveProfiles();
-                    this.switchProfile(newId);
-                    alert(`Profile '${importedName}' restored successfully.` + (skipped ? ` ${skipped} invalid entr${skipped === 1 ? 'y was' : 'ies were'} skipped.` : ''));
+                    this.switchProfile(targetId);
+
+                    if (isMerged) {
+                        alert(`Profile '${existingProfile.name}' updated: existing and imported statistics fused.`);
+                    } else {
+                        alert(`Profile '${cleanName}' imported successfully.`);
+                    }
                 } catch (err) {
                     alert('Error importing backup: ' + err.message);
                 } finally {
@@ -767,8 +843,48 @@ const ngramTypeConfig = {
             reader.readAsText(file);
         },
 
+        mergeNormalizedStats(target, source) {
+            target.meta.completedTests = (target.meta.completedTests || 0) + (source.meta.completedTests || 0);
+            target.meta.totalKeystrokes = (target.meta.totalKeystrokes || 0) + (source.meta.totalKeystrokes || 0);
+
+            const tLast = target.meta.lastRun ? new Date(target.meta.lastRun).getTime() : 0;
+            const sLast = source.meta.lastRun ? new Date(source.meta.lastRun).getTime() : 0;
+            target.meta.lastRun = new Date(Math.max(tLast, sLast) || Date.now()).toISOString();
+
+            for (const [ngram, srcItem] of Object.entries(source.ngrams || {})) {
+                if (!target.ngrams[ngram]) {
+                    target.ngrams[ngram] = srcItem;
+                    continue;
+                }
+                const tgtItem = target.ngrams[ngram];
+                tgtItem.history = (tgtItem.history || []).concat(srcItem.history || []);
+                tgtItem.history.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+                tgtItem.samples = (tgtItem.samples || []).concat(srcItem.samples || []);
+                while (tgtItem.samples.length >= CHUNK_SIZE) {
+                    const chunk = tgtItem.samples.splice(0, CHUNK_SIZE);
+                    let sumT = 0, errs = 0;
+                    for (let k = 0; k < CHUNK_SIZE; k++) {
+                        sumT += chunk[k].time;
+                        if (chunk[k].hadError) errs++;
+                    }
+                    tgtItem.history.push({
+                        count: CHUNK_SIZE,
+                        avgTime: Math.round(sumT / CHUNK_SIZE),
+                        errorCount: errs,
+                        timestamp: Date.now()
+                    });
+                }
+                if (tgtItem.history.length > MAX_HISTORY_BLOCKS) {
+                    tgtItem.history = tgtItem.history.slice(-MAX_HISTORY_BLOCKS);
+                }
+            }
+            return target;
+        },
+
         getWeakStorageKey(userId, lang) {
-            return `ngramWeakStats_u_${userId}_l_${lang}`;
+            const quSuffix = this.data.quAsOneChar ? '_qu' : '';
+            return `ngramWeakStats_u_${userId}_l_${lang}${quSuffix}`;
         },
 
         acknowledgeDisclaimer() {
@@ -815,14 +931,95 @@ const ngramTypeConfig = {
             return `./data/${this.data.selectedCorpus}/${this.categoryFolder}/`;
         },
 
-        reloadNgramData() {
+        async setSource(newSource) {
+            if (this.data.source === newSource) return;
+            this.data.source = newSource;
+            this.currentTestStaging = {};
+
+            const ds = this.data[newSource];
+            const hasExistingDeck = ds && Array.isArray(ds.phrases) && ds.phrases.length > 0;
+
+            if (newSource === 'custom_words') {
+                if (!hasExistingDeck) this.refreshPhrases();
+                else this.restoreCurrentDeck();
+            } else {
+                await this.reloadNgramData({ preserveExistingDeck: true });
+                if (!hasExistingDeck) this.refreshPhrases();
+                else this.restoreCurrentDeck();
+            }
+
+            this.resetCurrentPhraseMetrics();
+            this.save();
+        },
+
+        setScope(sc) {
+            const ds = this.dataSource;
+            if (!ds) return;
+            ds.scope = sc;
+            this.refreshPhrasesAndCurrentMetrics();
+        },
+
+        async onCorpusSelectionChanged() {
+            this.invalidateAllDecks();
+            this.currentTestStaging = {};
+            await this.reloadNgramData();
+            this.loadLanguageWeakStats();
+            this.resetCurrentPhraseMetrics();
+        },
+
+        async togglePunctuation() {
+            this.data.includePunctuation = !this.data.includePunctuation;
+            await this.onDatasetVariantChanged();
+        },
+
+        async toggleUppercase() {
+            this.data.includeUppercase = !this.data.includeUppercase;
+            await this.onDatasetVariantChanged();
+        },
+
+        async toggleQuMode() {
+            this.data.quAsOneChar = !this.data.quAsOneChar;
+            await this.onDatasetVariantChanged();
+            this.loadLanguageWeakStats();
+        },
+
+        async onDatasetVariantChanged() {
+            this.invalidateAllDecks();
+            this.currentTestStaging = {};
+            await this.reloadNgramData();
+            this.resetCurrentPhraseMetrics();
+            this.save();
+        },
+
+        invalidateAllDecks() {
+            for (const src of ['bigrams', 'trigrams', 'tetragrams', 'words']) {
+                if (this.data[src]) {
+                    this.data[src].phrases = [];
+                    this.data[src].phrasesCurrentIndex = 0;
+                }
+            }
+        },
+
+        restoreCurrentDeck() {
+            const ds = this.dataSource;
+            if (!ds || !ds.phrases || !ds.phrases.length) return;
+            if (ds.phrasesCurrentIndex === undefined || ds.phrasesCurrentIndex >= ds.phrases.length) {
+                ds.phrasesCurrentIndex = 0;
+            }
+            this.expectedPhrase = ds.phrases[ds.phrasesCurrentIndex] || '';
+            if (this.expectedPhrase) {
+                this.buildPhraseWordRanges(this.expectedPhrase);
+            }
+        },
+
+        reloadNgramData(options = {}) {
             const seq = ++this._loadSeq;
-            const run = this.applyNgramData(seq);
+            const run = this.applyNgramData(seq, options);
             this._latestLoad = run;
             return run;
         },
 
-        async applyNgramData(seq) {
+        async applyNgramData(seq, options = {}) {
             const pool = await this.loadNgramPool(this.getBasePath());
             if (seq !== this._loadSeq) return this._latestLoad;
 
@@ -834,28 +1031,35 @@ const ngramTypeConfig = {
             this._allowedBigramsSet = pool.bigramsSet;
             this._allowedTrigramsSet = pool.trigramsSet;
             this._allowedTetragramsSet = pool.tetragramsSet;
-
             this._ngramRanks = pool.ranks;
 
             this.currentTestStaging = {};
             this.resetCurrentPhraseMetrics();
-            this.refreshPhrases();
+
+            const ds = this.dataSource;
+            if (!options.preserveExistingDeck || !ds?.phrases?.length) {
+                this.refreshPhrases();
+            } else {
+                this.restoreCurrentDeck();
+            }
+
             this.refreshWeakStats();
         },
 
         loadNgramPool(basePath) {
             let pending = this._poolCache.get(basePath);
             if (!pending) {
+                const qu = this.data.quAsOneChar;
                 pending = Promise.all([
-                    this.fetchRawList(`${basePath}words.txt`, null, MAX_SCOPE),
-                    this.fetchRawList(`${basePath}2grams.txt`, 2, NGRAM_POOL_SIZE),
-                    this.fetchRawList(`${basePath}3grams.txt`, 3, NGRAM_POOL_SIZE),
-                    this.fetchRawList(`${basePath}4grams.txt`, 4, NGRAM_POOL_SIZE)
+                    this.fetchRawList(`${basePath}words.txt`, null, MAX_SCOPE, qu),
+                    this.fetchRawList(`${basePath}2grams.txt`, 2, NGRAM_POOL_SIZE, qu),
+                    this.fetchRawList(`${basePath}3grams.txt`, 3, NGRAM_POOL_SIZE, qu),
+                    this.fetchRawList(`${basePath}4grams.txt`, 4, NGRAM_POOL_SIZE, qu)
                 ]).then(([words, raw2, raw3, raw4]) => {
                     if (!words.length || !raw2.length || !raw3.length || !raw4.length) {
                         this._poolCache.delete(basePath);
                     }
-                    const pyramid = buildNgramPyramid(raw2, raw3, raw4);
+                    const pyramid = buildNgramPyramid(raw2, raw3, raw4, qu);
                     const ranks = new Map();
 
                     raw2.forEach((ng, idx) => ranks.set(ng, idx + 1));
@@ -873,12 +1077,12 @@ const ngramTypeConfig = {
             if (this._ngramRanks && this._ngramRanks.has(ngram)) {
                 return this._ngramRanks.get(ngram);
             }
-            return 201; // Default to just outside top pool for derived sub-ngrams
+            return MAX_SCOPE + 1;
         },
 
         loadFullWordList(basePath) {
             if (this._fullWordList.path !== basePath) {
-                const pending = this.fetchRawList(`${basePath}words.txt`, null);
+                const pending = this.fetchRawList(`${basePath}words.txt`, null, Infinity, this.data.quAsOneChar);
                 this._fullWordList = { path: basePath, pending };
                 pending.then(list => {
                     if (!list.length && this._fullWordList.pending === pending) {
@@ -889,14 +1093,14 @@ const ngramTypeConfig = {
             return this._fullWordList.pending;
         },
 
-        async fetchRawList(filePath, expectedLength = null, limit = Infinity) {
+        async fetchRawList(filePath, expectedUnits = null, limit = Infinity, quAsOne = false) {
             try {
                 const response = await fetch(filePath);
                 if (!response.ok) return [];
 
                 const list = [];
                 const addLine = (rawLine) => {
-                    const token = parseTokenLine(rawLine, expectedLength);
+                    const token = parseTokenLine(rawLine, expectedUnits, quAsOne);
                     if (token !== null) list.push(token);
                     return list.length >= limit;
                 };
@@ -950,14 +1154,8 @@ const ngramTypeConfig = {
 
         save() {
             try {
-                const dataToSave = { ...this.data };
-                for (const src of ['bigrams', 'trigrams', 'tetragrams', 'words', 'custom_words']) {
-                    if (dataToSave[src]) {
-                        const { phrases, ...rest } = dataToSave[src];
-                        dataToSave[src] = rest;
-                    }
-                }
-                safeStorage.set('ngramTypeAppdata', dataToSave);
+                // Phrases and current indices are preserved for each source
+                safeStorage.set('ngramTypeAppdata', this.data);
             } catch (e) {
                 console.warn('[Storage] Failed to save appdata:', e);
             }
@@ -1180,24 +1378,28 @@ const ngramTypeConfig = {
         },
 
         recordDeterministicWord(word, duration, hadError) {
-            const wordLen = word.length;
+            const quAsOne = !!this.data.quAsOneChar;
+            const units = tokenizeAtomicUnits(word, quAsOne);
+            const unitLen = units.length;
             const boundedDuration = Math.max(100, Math.min(4500, duration));
 
-            this.stageNgramSample(word, wordLen, boundedDuration, hadError);
+            if (unitLen >= 2 && unitLen <= 4) {
+                this.stageNgramSample(word, unitLen, boundedDuration, hadError);
+            }
 
-            if (wordLen === 4) {
+            if (unitLen === 4) {
                 const subTriTime = Math.round(boundedDuration * 0.75);
-                this.stageNgramSample(word.substring(0, 3), 3, subTriTime, hadError);
-                this.stageNgramSample(word.substring(1, 4), 3, subTriTime, hadError);
+                this.stageNgramSample(units.slice(0, 3).join(''), 3, subTriTime, hadError);
+                this.stageNgramSample(units.slice(1, 4).join(''), 3, subTriTime, hadError);
 
                 const subBiTime = Math.round(boundedDuration * 0.5);
-                this.stageNgramSample(word.substring(0, 2), 2, subBiTime, hadError);
-                this.stageNgramSample(word.substring(1, 3), 2, subBiTime, hadError);
-                this.stageNgramSample(word.substring(2, 4), 2, subBiTime, hadError);
-            } else if (wordLen === 3) {
+                this.stageNgramSample(units.slice(0, 2).join(''), 2, subBiTime, hadError);
+                this.stageNgramSample(units.slice(1, 3).join(''), 2, subBiTime, hadError);
+                this.stageNgramSample(units.slice(2, 4).join(''), 2, subBiTime, hadError);
+            } else if (unitLen === 3) {
                 const subBiTime = Math.round(boundedDuration * 0.65);
-                this.stageNgramSample(word.substring(0, 2), 2, subBiTime, hadError);
-                this.stageNgramSample(word.substring(1, 3), 2, subBiTime, hadError);
+                this.stageNgramSample(units.slice(0, 2).join(''), 2, subBiTime, hadError);
+                this.stageNgramSample(units.slice(1, 3).join(''), 2, subBiTime, hadError);
             }
         },
 
@@ -1246,7 +1448,7 @@ const ngramTypeConfig = {
 
         loadLanguageWeakStats() {
             const key = this.getWeakStorageKey(this.currentProfileId, this.currentLangCode);
-            this.weakStatsData = normalizeWeakStats(safeStorage.get(key, null)) || emptyWeakStats();
+            this.weakStatsData = normalizeWeakStats(safeStorage.get(key, null), this.data.quAsOneChar) || emptyWeakStats();
             this.refreshWeakStats();
         },
 
@@ -1273,7 +1475,6 @@ const ngramTypeConfig = {
 
                 target.samples.push(...staged.samples);
 
-                // Checkpoint every 5 occurrences into permanent granular history
                 while (target.samples.length >= CHUNK_SIZE) {
                     const chunk = target.samples.splice(0, CHUNK_SIZE);
                     let sumTime = 0;
@@ -1319,7 +1520,6 @@ const ngramTypeConfig = {
                 const totalCount = historySamplesCount + samples.length;
                 if (totalCount < 1) continue;
 
-                // Recent sliding window (up to 40 occurrences)
                 let recentSumTime = 0;
                 let recentErrors = 0;
                 let recentCount = 0;
@@ -1347,24 +1547,17 @@ const ngramTypeConfig = {
                 const avg = recentSumTime / recentCount;
                 const rawErrRate = recentErrors / recentCount;
 
-                // WPM equivalent for this n-gram
                 const ngramWpm = Math.round((12000 * len) / Math.max(40, avg));
-
-                // Personal Relative Ratio: R = Observed Latency / Personal Baseline Latency
                 const relativeRatio = avg / baselineLatency;
-
-                // Smoothed Laplace error multiplier
                 const laplaceErrRate = recentErrors / (recentCount + 2);
                 const personalDifficulty = relativeRatio * (1 + (laplaceErrRate * 2.5));
 
-                // Natural corpus linguistic frequency weight
                 const rank = this.getNgramRank(ngram, len);
-                const freqWeight = 0.35 + (0.65 * ((201 - Math.min(200, rank)) / 200));
+                const maxPool = NGRAM_POOL_SIZE; // 500
+                const freqWeight = 0.35 + (0.65 * ((maxPool + 1 - Math.min(maxPool, rank)) / maxPool));
 
-                // Normalized Priority Index (1 to 100)
                 const priorityScore = Math.min(100, Math.max(1, Math.round(personalDifficulty * freqWeight * 40)));
 
-                // Qualitative classification based on the relative score
                 let tierLabel = 'FLUID';
                 let tierClass = 'badge-priority-fluid';
                 let barColor = '#10b981';
@@ -1415,7 +1608,6 @@ const ngramTypeConfig = {
             if (sortBy === 'latency') {
                 sorted.sort((a, b) => (b.confirmed - a.confirmed) || (b.avgTime - a.avgTime));
             } else if (sortBy === 'error') {
-                // Partition: items with >= 20 samples prioritized; < 20 relegated to bottom
                 sorted.sort((a, b) => {
                     const aValid = (a.totalCount >= MIN_ERROR_SORT_SAMPLES);
                     const bValid = (b.totalCount >= MIN_ERROR_SORT_SAMPLES);
@@ -1423,7 +1615,6 @@ const ngramTypeConfig = {
                     return (b.errorRate - a.errorRate) || (b.errors - a.errors) || (b.totalCount - a.totalCount);
                 });
             } else {
-                // Default: Priority / Impact Score
                 sorted.sort((a, b) => (b.confirmed - a.confirmed) || (b.priorityScore - a.priorityScore));
             }
             return sorted;
@@ -1436,7 +1627,8 @@ const ngramTypeConfig = {
         },
 
         resetLanguageWeakStats() {
-            const label = `${this.readableCorpusName} (${this.currentLangCode.toUpperCase()})`;
+            const quLabel = this.data.quAsOneChar ? ' [qu=1]' : '';
+            const label = `${this.readableCorpusName} (${this.currentLangCode.toUpperCase()})${quLabel}`;
             if (confirm(`Reset all weakness data for ${label}?`)) {
                 this.weakStatsData = emptyWeakStats();
                 this.currentTestStaging = {};
@@ -1481,14 +1673,11 @@ const ngramTypeConfig = {
             let trendIcon = 'fa-minus';
 
             if (hasPoints) {
-                // Select blocks according to view mode
                 let rawBlocks = history.slice();
                 if (this.evolutionViewMode === 'recent' && totalCount >= 50) {
-                    // Last 100 occurrences (20 blocks of 5)
                     rawBlocks = rawBlocks.slice(-20);
                 }
 
-                // Downsample for All-Time mode if points exceed MAX_CHART_POINTS
                 let plotBlocks = [];
                 if (rawBlocks.length <= MAX_CHART_POINTS) {
                     plotBlocks = rawBlocks.map((b, idx) => ({
@@ -1502,9 +1691,7 @@ const ngramTypeConfig = {
                     const binSize = Math.ceil(rawBlocks.length / MAX_CHART_POINTS);
                     for (let i = 0; i < rawBlocks.length; i += binSize) {
                         const bin = rawBlocks.slice(i, i + binSize);
-                        let sumT = 0;
-                        let errs = 0;
-                        let occs = 0;
+                        let sumT = 0, errs = 0, occs = 0;
                         bin.forEach(b => {
                             const c = b.count || CHUNK_SIZE;
                             sumT += b.avgTime * c;
@@ -1525,7 +1712,6 @@ const ngramTypeConfig = {
                 bestBlockTime = Math.min(...times);
                 worstBlockTime = Math.max(...times);
 
-                // Trend detection
                 if (plotBlocks.length >= 2) {
                     const earlyAvg = plotBlocks.slice(0, Math.min(3, plotBlocks.length)).reduce((acc, h) => acc + h.avgTime, 0) / Math.min(3, plotBlocks.length);
                     const lateAvg = plotBlocks.slice(-Math.min(3, plotBlocks.length)).reduce((acc, h) => acc + h.avgTime, 0) / Math.min(3, plotBlocks.length);
@@ -1542,7 +1728,6 @@ const ngramTypeConfig = {
                     }
                 }
 
-                // Prepare SVG chart coordinates
                 const svgW = 600;
                 const svgH = 220;
                 const padLeft = 52;
@@ -1678,7 +1863,6 @@ const ngramTypeConfig = {
                 else if (this.drillNgramType === 'trigrams') list = this.weakTrigrams;
                 else list = this.weakTetragrams;
 
-                // Apply Caps & Punctuation filters directly in drill modal
                 const filtered = list.filter(item => {
                     if (!this.drillFilterCaps && CAPS_REGEX.test(item.ngram)) return false;
                     if (!this.drillFilterPunct && PUNCT_REGEX.test(item.ngram)) return false;

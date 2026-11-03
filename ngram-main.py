@@ -6,6 +6,8 @@ ngramInternational — High-Performance Multilingual Corpus & N-Gram Engine
 - Whitelisted punctuation strictly limited to: ' " : . , ? ! ; _ - /
 - Frequency threshold: Words retained ONLY if occurrences >= 50.
 - Unicode NFC normalization ensures full multilingual accuracy (accents/diacritics).
+- Atomic Digraph Support: Generates both standard and 'qu as 1 character' datasets
+  (27th alphabet letter where 'qu' is treated as an indivisible unit).
 - High-throughput streaming pipeline maintaining low memory footprint (< 150 MB RAM).
 - Fully compatible with app.js dataset loaders.
 """
@@ -33,11 +35,18 @@ CHUNK_WRITE_SIZE = 65536  # Number of lines per disk write batch
 # Explicit authorized punctuation set
 AUTHORIZED_PUNCTUATION = frozenset({"\'", '"', ":", ".", ",", "?", "!", ";", "_", "-", "/"})
 
+# Category Definitions: (folder_name, is_lowercase_only, include_punctuation, qu_as_one_char)
 CATEGORIES = (
-    ("Lowercase_Alphanumeric", True, False),
-    ("All_Cases_Alphanumeric", False, False),
-    ("Lowercase_Alphanumeric_Punctuation", True, True),
-    ("All_Cases_Alphanumeric_Punctuation", False, True),
+    # Standard modes (Standard alphabet)
+    ("Normal_Lowercase_Alphanumeric", True, False, False),
+    ("Normal_All_Cases_Alphanumeric", False, False, False),
+    ("Normal_Lowercase_Alphanumeric_Punctuation", True, True, False),
+    ("Normal_All_Cases_Alphanumeric_Punctuation", False, True, False),
+    # 27th letter modes ('qu' counts as 1 atomic character)
+    ("Qu_As_1_Character_Normal_Lowercase_Alphanumeric", True, False, True),
+    ("Qu_As_1_Character_Normal_All_Cases_Alphanumeric", False, False, True),
+    ("Qu_As_1_Character_Normal_Lowercase_Alphanumeric_Punctuation", True, True, True),
+    ("Qu_As_1_Character_Normal_All_Cases_Alphanumeric_Punctuation", False, True, True),
 )
 CAT_NAMES = tuple(c[0] for c in CATEGORIES)
 
@@ -101,6 +110,53 @@ UNICODE_TYPE, NORM_TRANSLATION = _build_precomputed_tables()
 
 
 # =====================================================================
+# ATOMIC DIGRAPH TOKENIZERS ("qu" as 1 character)
+# =====================================================================
+
+def tokenize_qu(text: str):
+    """
+    Splits text into atomic units where 'qu', 'Qu', 'QU', 'qU' count as a single unit.
+    All other characters are split individually.
+    Fast path: returns list(text) directly if neither 'q' nor 'Q' is present.
+    """
+    if "q" not in text and "Q" not in text:
+        return list(text)
+
+    units = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if i + 1 < n and text[i] in ("q", "Q") and text[i + 1] in ("u", "U"):
+            units.append(text[i:i + 2])
+            i += 2
+        else:
+            units.append(text[i])
+            i += 1
+    return units
+
+
+def tokenize_qu_lower(text: str):
+    """
+    Optimized lowercase tokenizer: splits text where 'qu' counts as a single unit.
+    Fast path: returns list(text) directly if 'q' is not present.
+    """
+    if "q" not in text:
+        return list(text)
+
+    units = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if i + 1 < n and text[i] == "q" and text[i + 1] == "u":
+            units.append("qu")
+            i += 2
+        else:
+            units.append(text[i])
+            i += 1
+    return units
+
+
+# =====================================================================
 # HIGH-SPEED STREAMING EXTRACTION
 # =====================================================================
 
@@ -147,7 +203,7 @@ def sanitize_token(token: str, u_type: bytes):
     if not token:
         return None
 
-    # Strip unauthorized surrounding boundary characters (e.g. parentheses or brackets)
+    # Strip unauthorized surrounding boundary characters
     start = 0
     end = len(token)
 
@@ -202,11 +258,48 @@ def sanitize_token(token: str, u_type: bytes):
     return cleaned
 
 
+def add_ngrams_standard(target_dict, seq: str, count: int):
+    """Generates standard 2, 3, and 4-grams from a character sequence."""
+    seq_len = len(seq)
+    if seq_len >= 2:
+        d2 = target_dict[2]
+        for i in range(seq_len - 1):
+            d2[seq[i:i + 2]] += count
+    if seq_len >= 3:
+        d3 = target_dict[3]
+        for i in range(seq_len - 2):
+            d3[seq[i:i + 3]] += count
+    if seq_len >= 4:
+        d4 = target_dict[4]
+        for i in range(seq_len - 3):
+            d4[seq[i:i + 4]] += count
+
+
+def add_ngrams_units(target_dict, units: list, count: int):
+    """
+    Generates 2, 3, and 4-grams from an atomic unit sequence.
+    Where 'qu' is 1 unit, 2-grams are combinations of 2 units (e.g. 'qu'+'i' -> 'qui').
+    """
+    u_len = len(units)
+    if u_len >= 2:
+        d2 = target_dict[2]
+        for i in range(u_len - 1):
+            d2[units[i] + units[i + 1]] += count
+    if u_len >= 3:
+        d3 = target_dict[3]
+        for i in range(u_len - 2):
+            d3[units[i] + units[i + 1] + units[i + 2]] += count
+    if u_len >= 4:
+        d4 = target_dict[4]
+        for i in range(u_len - 3):
+            d4[units[i] + units[i + 1] + units[i + 2] + units[i + 3]] += count
+
+
 def generate_all_ngrams(raw_word_counts: Counter, min_count: int = 50):
     """
     1. Filters vocabulary to words with frequency >= min_count.
     2. Validates character legality (no digits, authorized punctuation only).
-    3. Populates the 4 standard categories.
+    3. Populates all 8 categories (4 Normal + 4 QU-atomic).
     4. Computes 2, 3, and 4-grams strictly from certified tokens.
     """
     counters = {
@@ -214,28 +307,18 @@ def generate_all_ngrams(raw_word_counts: Counter, min_count: int = 50):
         for cat in CAT_NAMES
     }
 
-    la = counters["Lowercase_Alphanumeric"]
-    aa = counters["All_Cases_Alphanumeric"]
-    lp = counters["Lowercase_Alphanumeric_Punctuation"]
-    ap = counters["All_Cases_Alphanumeric_Punctuation"]
+    # Direct references to counters for maximum inner loop performance
+    norm_la = counters["Normal_Lowercase_Alphanumeric"]
+    norm_aa = counters["Normal_All_Cases_Alphanumeric"]
+    norm_lp = counters["Normal_Lowercase_Alphanumeric_Punctuation"]
+    norm_ap = counters["Normal_All_Cases_Alphanumeric_Punctuation"]
+
+    qu_la = counters["Qu_As_1_Character_Normal_Lowercase_Alphanumeric"]
+    qu_aa = counters["Qu_As_1_Character_Normal_All_Cases_Alphanumeric"]
+    qu_lp = counters["Qu_As_1_Character_Normal_Lowercase_Alphanumeric_Punctuation"]
+    qu_ap = counters["Qu_As_1_Character_Normal_All_Cases_Alphanumeric_Punctuation"]
 
     u_type = UNICODE_TYPE
-
-    def add_ngrams(target_dict, seq: str, count: int):
-        seq_len = len(seq)
-        if seq_len >= 2:
-            d2 = target_dict[2]
-            for i in range(seq_len - 1):
-                d2[seq[i:i + 2]] += count
-        if seq_len >= 3:
-            d3 = target_dict[3]
-            for i in range(seq_len - 2):
-                d3[seq[i:i + 3]] += count
-        if seq_len >= 4:
-            d4 = target_dict[4]
-            for i in range(seq_len - 3):
-                d4[seq[i:i + 4]] += count
-
     total_unique = len(raw_word_counts)
     retained_words = 0
     discarded_count_threshold = 0
@@ -254,24 +337,53 @@ def generate_all_ngrams(raw_word_counts: Counter, min_count: int = 50):
         retained_words += 1
         word_lower = clean_word.lower()
 
-        # Category 1: All Cases Alphanumeric + Punctuation
-        ap["words"][clean_word] += count
-        add_ngrams(ap, clean_word, count)
-
-        # Category 2: Lowercase Alphanumeric + Punctuation
-        lp["words"][word_lower] += count
-        add_ngrams(lp, word_lower, count)
-
-        # Categories 3 & 4: Pure letters only (punctuation omitted)
+        # Pure letters (punctuation omitted)
         pure_letters = "".join(c for c in clean_word if u_type[ord(c)] == 1)
+        pure_lower = pure_letters.lower() if pure_letters else ""
+
+        # -------------------------------------------------------------
+        # CATEGORIES 1-4: Standard Modes
+        # -------------------------------------------------------------
+        # 1. Normal All Cases Alphanumeric + Punctuation
+        norm_ap["words"][clean_word] += count
+        add_ngrams_standard(norm_ap, clean_word, count)
+
+        # 2. Normal Lowercase Alphanumeric + Punctuation
+        norm_lp["words"][word_lower] += count
+        add_ngrams_standard(norm_lp, word_lower, count)
+
+        # 3 & 4. Normal Alphanumeric Only
         if len(pure_letters) >= 2:
-            pure_lower = pure_letters.lower()
+            norm_aa["words"][pure_letters] += count
+            add_ngrams_standard(norm_aa, pure_letters, count)
 
-            aa["words"][pure_letters] += count
-            add_ngrams(aa, pure_letters, count)
+            norm_la["words"][pure_lower] += count
+            add_ngrams_standard(norm_la, pure_lower, count)
 
-            la["words"][pure_lower] += count
-            add_ngrams(la, pure_lower, count)
+        # -------------------------------------------------------------
+        # CATEGORIES 5-8: "QU" as 1 character modes
+        # -------------------------------------------------------------
+        # 5. QU All Cases Alphanumeric + Punctuation
+        qu_ap["words"][clean_word] += count
+        units_ap = tokenize_qu(clean_word)
+        add_ngrams_units(qu_ap, units_ap, count)
+
+        # 6. QU Lowercase Alphanumeric + Punctuation
+        qu_lp["words"][word_lower] += count
+        units_lp = tokenize_qu_lower(word_lower)
+        add_ngrams_units(qu_lp, units_lp, count)
+
+        # 7 & 8. QU Alphanumeric Only
+        if len(pure_letters) >= 2:
+            units_aa = tokenize_qu(pure_letters)
+            if len(units_aa) >= 2:
+                qu_aa["words"][pure_letters] += count
+                add_ngrams_units(qu_aa, units_aa, count)
+
+            units_la = tokenize_qu_lower(pure_lower)
+            if len(units_la) >= 2:
+                qu_la["words"][pure_lower] += count
+                add_ngrams_units(qu_la, units_la, count)
 
     print(f"        [FILTER STATS] Total raw tokens: {total_unique:,}")
     print(f"          -> Retained certified words: {retained_words:,} (count >= {min_count})")
@@ -346,13 +458,13 @@ def process_target(target_path: Path):
 
     print(f"        Total Read: {total_bytes / (1024 * 1024):.2f} MB | {len(master_word_counts):,} raw tokens.")
 
-    # Phase 2: Filtering & N-gram computation
-    print(f"  [2/3] Filtering (threshold >= {MIN_WORD_OCCURRENCE}) and computing n-grams...")
+    # Phase 2: Filtering & N-gram computation (8 categories)
+    print(f"  [2/3] Computing n-grams (8 categories: 4 Standard + 4 'qu as 1 char')...")
     counters = generate_all_ngrams(master_word_counts, min_count=MIN_WORD_OCCURRENCE)
 
     # Phase 3: Disk export
     output_base = OUTPUT_DIR / f"Ngram_{clean_name}"
-    print(f"  [3/3] Exporting clean datasets to: {output_base.name}/")
+    print(f"  [3/3] Exporting datasets to: {output_base.name}/")
 
     for cat_name in CAT_NAMES:
         cat_dir = output_base / cat_name
@@ -388,7 +500,7 @@ def main():
         return
 
     print("\n" + "=" * 60)
-    print(" N-GRAM & VOCABULARY GENERATOR (STRICT 50+ OCCURRENCES)")
+    print(" N-GRAM & VOCABULARY GENERATOR (STANDARD + 27-LETTER 'QU')")
     print("=" * 60)
     print("Detected corpora in /corpus:\n")
 

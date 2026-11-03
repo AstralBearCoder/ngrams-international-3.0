@@ -194,14 +194,14 @@
             <aside id="app-sidebar" :class="['left-rail-sidebar', { 'sidebar-collapsed': !data.sidebarOpen }]" aria-label="Configuration settings">
                 <div class="sidebar-scrollable-content">
 
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="sidebar-main-title">SETTINGS</span>
                         <button type="button" class="btn-close-sidebar" @click="data.sidebarOpen = false; save()" title="Collapse" aria-label="Collapse sidebar">
                             <i class="fa fa-chevron-left" aria-hidden="true"></i>
                         </button>
                     </div>
 
-                    <!-- 1. CORPUS -->
+                    <!-- 1. CORPUS & VARIANTS (Punct, Caps, qu=1) -->
                     <div class="sidebar-block">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <label for="dock-corpus-select" class="block-title mb-0">Corpus</label>
@@ -212,31 +212,67 @@
                                 id="dock-corpus-select"
                                 class="dock-select"
                                 v-model="data.selectedCorpus"
-                                @change="reloadNgramData"
+                                @change="onCorpusSelectionChanged"
                             >
                                 <option v-for="corp in availableCorpora" :key="corp.id" :value="corp.id">{{ corp.label }}</option>
                             </select>
                             <i class="fa fa-caret-down select-caret" aria-hidden="true"></i>
                         </div>
-                        <div class="variants-grid">
+                        <div class="variants-grid-3">
                             <button
                                 type="button"
                                 :class="['pill-btn', { active: data.includePunctuation }]"
-                                @click="data.includePunctuation = !data.includePunctuation; reloadNgramData()"
+                                @click="togglePunctuation"
+                                title="Toggle punctuation marks"
                             >
                                 Punct
                             </button>
                             <button
                                 type="button"
                                 :class="['pill-btn', { active: data.includeUppercase }]"
-                                @click="data.includeUppercase = !data.includeUppercase; reloadNgramData()"
+                                @click="toggleUppercase"
+                                title="Toggle uppercase capital letters"
                             >
                                 Caps
+                            </button>
+                            <button
+                                type="button"
+                                :class="['pill-btn', { active: data.quAsOneChar }]"
+                                @click="toggleQuMode"
+                                title="Count 'qu' as 1 indivisible letter; isolate standalone 'q' and 'u'"
+                            >
+                                qu=1
                             </button>
                         </div>
                     </div>
 
-                    <!-- 2. SOURCE -->
+                    <!-- 2. NO RESET MODE (COMPACT CARD BETWEEN CORPUS AND SOURCE) -->
+                    <div class="sidebar-block">
+                        <div
+                            class="no-reset-toggle-card"
+                            :class="{ 'active-no-reset': data.noResetMode }"
+                            @click="data.noResetMode = !data.noResetMode; save()"
+                            style="cursor: pointer;"
+                            role="button"
+                            tabindex="0"
+                            aria-label="Toggle No Reset Mode"
+                            title="Locks Tab &amp; Esc reset during phrase typing"
+                        >
+                            <span class="small font-weight-bold text-main">No Reset Mode</span>
+                            <div class="custom-control custom-switch" style="pointer-events: none;">
+                                <input
+                                    type="checkbox"
+                                    class="custom-control-input"
+                                    id="no-reset-toggle"
+                                    :checked="data.noResetMode"
+                                    tabindex="-1"
+                                >
+                                <label class="custom-control-label" for="no-reset-toggle"></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. SOURCE -->
                     <div class="sidebar-block">
                         <span class="block-title">Source</span>
                         <div class="source-vertical-stack">
@@ -245,7 +281,7 @@
                                 :key="src"
                                 type="button"
                                 :class="['pill-btn text-center', { active: data.source === src }]"
-                                @click="data.source = src; reloadNgramData()"
+                                @click="setSource(src)"
                             >
                                 {{ src.charAt(0).toUpperCase() + src.slice(1) }}
                             </button>
@@ -261,54 +297,25 @@
                         </div>
                     </div>
 
-                    <!-- 3. SCOPE -->
+                    <!-- 4. SCOPE (TOP 50, 100, 200, 500) -->
                     <div class="sidebar-block" v-if="data.source !== 'custom_words'">
                         <span class="block-title">Scope</span>
                         <div class="scope-grid-2x2">
                             <button
-                                v-for="sc in [50, 100, 150, 200]"
+                                v-for="sc in [50, 100, 200, 500]"
                                 :key="sc"
                                 type="button"
                                 :class="['pill-btn', { active: data[data.source].scope === sc }]"
-                                @click="data[data.source].scope = sc; refreshPhrasesAndCurrentMetrics()"
+                                @click="setScope(sc)"
                             >
                                 Top {{ sc }}
                             </button>
                         </div>
                     </div>
 
-                    <!-- 4. RULES & NO RESET MODE -->
+                    <!-- 5. RULES & GENERATOR STEPPERS -->
                     <div class="sidebar-block">
-                        <span class="block-title">Generator & Rules</span>
-
-                        <!-- No Reset Mode Toggle Card -->
-                        <div
-                            class="no-reset-toggle-card p-2 mb-2 rounded"
-                            :class="{ 'active-no-reset': data.noResetMode }"
-                            @click="data.noResetMode = !data.noResetMode; save()"
-                            style="cursor: pointer;"
-                            role="button"
-                            tabindex="0"
-                            aria-label="Toggle No Reset Mode"
-                        >
-                            <div class="custom-control custom-switch" style="pointer-events: none;">
-                                <input
-                                    type="checkbox"
-                                    class="custom-control-input"
-                                    id="no-reset-toggle"
-                                    :checked="data.noResetMode"
-                                    tabindex="-1"
-                                >
-                                <label class="custom-control-label font-weight-bold text-main small" for="no-reset-toggle">
-                                    No Reset Mode
-                                </label>
-                            </div>
-                            <small class="text-muted d-block mt-1 no-reset-hint">
-                                Locks <kbd>Tab</kbd> &amp; <kbd>Esc</kbd>.
-                            </small>
-                        </div>
-
-                        <!-- Steppers -->
+                        <span class="block-title">Generator &amp; Rules</span>
                         <div class="interactive-rules-list">
                             <div class="rule-stepper-row">
                                 <label for="stepper-combination" class="rule-name">Combination</label>
@@ -367,6 +374,10 @@
                             <i class="fa fa-check-circle-o mr-1" aria-hidden="true"></i>{{ completedTestsCount }} {{ readableCorpusName }} test{{ completedTestsCount === 1 ? '' : 's' }}
                         </span>
 
+                        <span v-if="data.quAsOneChar" class="badge badge-info mr-2" title="qu counts as 1 indivisible letter">
+                            qu=1
+                        </span>
+
                         <span v-if="data.noResetMode" class="badge badge-danger">
                             <i class="fa fa-lock mr-1" aria-hidden="true"></i>NO RESET LOCKED
                         </span>
@@ -391,7 +402,7 @@
                             data-lpignore="true"
                             data-1p-ignore
                             data-form-type="other"
-                            :placeholder="data.noResetMode ? 'No Reset Mode: Finish test required.' : 'Type here. Press <TAB> or <ESC> to restart phrase.'"
+                            :placeholder="data.noResetMode ? 'No Reset Mode: Finish phrase required.' : 'Type here. Press <TAB> or <ESC> to restart phrase.'"
                             v-on:keyup="keyHandler"
                             autofocus
                         >
@@ -506,6 +517,7 @@
                                 <i class="fa fa-bullseye mr-2" aria-hidden="true"></i>Weakness Detection
                             </h5>
                             <span class="badge badge-accent-subtle mr-2">{{ readableCorpusName }} ({{ currentLangCode.toUpperCase() }})</span>
+                            <span v-if="data.quAsOneChar" class="badge badge-info mr-2">qu=1</span>
                             <span class="badge badge-secondary mr-2"><i class="fa fa-user mr-1" aria-hidden="true"></i>{{ currentProfile.name }}</span>
                             <span :class="['badge', confidenceStatus.class]">{{ confidenceStatus.label }}</span>
                         </div>
@@ -516,7 +528,7 @@
 
                     <div class="modal-body pt-1">
 
-                        <!-- Prominent Drill Action Banner -->
+                        <!-- Drill Action Banner -->
                         <div class="drill-launch-banner p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                             <div>
                                 <span class="font-weight-bold text-main d-block">
@@ -534,9 +546,8 @@
                             </button>
                         </div>
 
-                        <!-- 2-LINE CONTROLS HEADER -->
+                        <!-- 2-Line Controls Header -->
                         <div class="weakness-controls-wrapper mb-3">
-                            <!-- Line 1: N-gram Category Tabs -->
                             <div class="d-flex align-items-center mb-2">
                                 <ul class="nav nav-pills weakness-nav-pills" role="tablist">
                                     <li class="nav-item">
@@ -557,7 +568,6 @@
                                 </ul>
                             </div>
 
-                            <!-- Line 2: Sort Actions & Personal Baseline Indicator -->
                             <div class="d-flex flex-wrap justify-content-between align-items-center pt-1 border-top border-subtle">
                                 <div class="d-flex align-items-center flex-wrap" style="gap: 0.4rem;">
                                     <span class="small text-muted font-weight-bold mr-1">Sort by:</span>
@@ -596,24 +606,24 @@
                             </div>
                         </div>
 
-                        <!-- Statistical Relegation Note (when sorted by error) -->
+                        <!-- Statistical Relegation Note -->
                         <div v-if="weaknessSortBy === 'error'" class="alert alert-dark py-1 px-2 mb-2 border-secondary small text-muted d-flex align-items-center">
                             <i class="fa fa-info-circle text-accent mr-2" aria-hidden="true"></i>
                             <span>Error sorting prioritizes verified n-grams (≥ 20 occurrences). Items with &lt; 20 occurrences are relegated to the bottom.</span>
                         </div>
 
-                        <!-- Weakness Table with Clickable Rows -->
+                        <!-- Weakness Table with Corpus Rank Pastille (#XX) -->
                         <div class="table-responsive weakness-scroll-box">
                             <table class="table table-sm weakness-table">
                                 <thead>
                                     <tr>
                                         <th scope="col" style="width: 5%;">#</th>
-                                        <th scope="col" style="width: 14%;">N-gram</th>
-                                        <th scope="col" style="width: 18%;">
+                                        <th scope="col" style="width: 15%;">N-gram</th>
+                                        <th scope="col" style="width: 17%;">
                                             Priority
                                             <i class="fa fa-question-circle text-muted ml-1"
                                                data-toggle="tooltip"
-                                               title="Impact on your typing speed: Personal difficulty (relative to your average speed) × Frequency in language"
+                                               title="Impact on your typing speed: Personal difficulty relative to your baseline × Corpus frequency"
                                                aria-hidden="true"></i>
                                         </th>
                                         <th scope="col" style="width: 25%;">Fluidity Spectrum</th>
@@ -628,7 +638,7 @@
                                         :key="item.ngram"
                                         :class="['weakness-row-clickable', { 'weakness-row-relegated': item.isRelegated }]"
                                         @click="openNgramHistory(item)"
-                                        title="Click to view all-time evolution & progression"
+                                        title="Click to view all-time evolution &amp; progression"
                                         role="button"
                                         tabindex="0"
                                         @keyup.enter="openNgramHistory(item)"
@@ -636,6 +646,10 @@
                                         <td class="text-muted">#{{ idx + 1 }}</td>
                                         <td>
                                             <span class="font-code font-weight-bold text-accent">{{ item.ngram }}</span>
+                                            <!-- Corpus Frequency Rank Pastille -->
+                                            <span class="badge badge-corpus-rank ml-1 font-code" :title="'Corpus frequency rank: #' + item.corpusRank">
+                                                #{{ item.corpusRank }}
+                                            </span>
                                             <span v-if="item.isRelegated" class="badge badge-secondary ml-1" style="font-size: 0.65rem;" title="Under statistical threshold">
                                                 {{ item.totalCount }}/20
                                             </span>
@@ -771,7 +785,7 @@
                             </div>
                             <div class="btn-group btn-group-sm w-100 mb-2">
                                 <button
-                                    v-for="qty in [10, 25, 50, 100, 200]"
+                                    v-for="qty in [10, 25, 50, 100, 200, 500]"
                                     :key="qty"
                                     type="button"
                                     :class="['btn', drillScope === qty ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
@@ -781,7 +795,6 @@
                                 </button>
                             </div>
 
-                            <!-- Dedicated Caps & Punct Toggles for Drill -->
                             <div class="d-flex gap-2" style="gap: 0.5rem;">
                                 <button
                                     type="button"
@@ -802,7 +815,7 @@
                             </div>
                         </div>
 
-                        <!-- 4. Steppers: Combination, Repetition, Min WPM, Min Accuracy -->
+                        <!-- 4. Rules & Thresholds -->
                         <div class="mb-2">
                             <label class="block-title">Rules &amp; Thresholds</label>
                             <div class="interactive-rules-list">
@@ -864,7 +877,7 @@
             </div>
         </div>
 
-        <!-- MODAL: PER-NGRAM EVOLUTION & ALL-TIME PROGRESSION -->
+        <!-- MODAL: PER-NGRAM EVOLUTION & PROGRESSION -->
         <div id="ngram-history-modal" class="modal fade" role="dialog" tabindex="-1" aria-labelledby="ngramHistoryModalTitle" aria-modal="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content custom-modal-box">
@@ -875,6 +888,7 @@
                                 Evolution: <span class="font-code text-target px-2 py-1 rounded bg-dark border border-secondary">{{ selectedNgramData?.ngram }}</span>
                             </h5>
                             <span class="badge badge-accent-subtle mr-1">{{ readableCorpusName }}</span>
+                            <span v-if="data.quAsOneChar" class="badge badge-info mr-1">qu=1</span>
                             <span class="badge badge-secondary">{{ selectedNgramData?.len }}-gram</span>
                         </div>
                         <button type="button" class="close text-muted" data-dismiss="modal" aria-label="Close modal">
@@ -912,7 +926,7 @@
                             </div>
                         </div>
 
-                        <!-- Calibration / Early Stage Notice (< 50 occurrences) -->
+                        <!-- Calibration Notice (< 50 occurrences) -->
                         <div v-if="selectedNgramData.totalCount < 50" class="p-3 drill-config-card mb-3 text-center">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="small font-weight-bold text-accent">
@@ -932,14 +946,13 @@
                             </small>
                         </div>
 
-                        <!-- SVG Progression Chart (Requires at least 1 recorded block of 5) -->
+                        <!-- SVG Progression Chart -->
                         <div v-if="selectedNgramData.hasPoints" class="drill-config-card p-3 mb-3">
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                                 <div class="d-flex align-items-center">
                                     <span class="small font-weight-bold text-muted text-uppercase mr-3">
                                         Progression ({{ selectedNgramData.viewMode === 'recent' ? 'Recent 100 Occurrences' : 'All-Time Overview' }})
                                     </span>
-                                    <!-- View Mode Toggle (Only when totalCount >= 50) -->
                                     <div class="btn-group btn-group-sm" v-if="selectedNgramData.totalCount >= 50">
                                         <button
                                             type="button"
@@ -966,7 +979,6 @@
 
                             <div class="ngram-chart-container">
                                 <svg viewBox="0 0 600 220" class="ngram-chart-svg" preserveAspectRatio="none">
-                                    <!-- Horizontal Gridlines & Y-axis Labels -->
                                     <line
                                         v-for="g in selectedNgramData.chart.gridY"
                                         :key="g.y"
@@ -986,7 +998,6 @@
                                         {{ g.val }}ms
                                     </text>
 
-                                    <!-- Personal Baseline Guideline -->
                                     <line
                                         v-if="selectedNgramData.chart.baselineY"
                                         x1="45"
@@ -997,13 +1008,9 @@
                                         stroke-dasharray="3,3"
                                     />
 
-                                    <!-- Area Fill Underneath Latency Curve -->
                                     <polygon :points="selectedNgramData.chart.areaPoints" class="chart-area-fill" />
-
-                                    <!-- Latency Curve -->
                                     <polyline :points="selectedNgramData.chart.linePoints" class="chart-latency-line" />
 
-                                    <!-- Data Points (Circles) -->
                                     <circle
                                         v-for="(pt, pIdx) in selectedNgramData.chart.points"
                                         :key="'pt-' + pIdx"
@@ -1016,7 +1023,6 @@
                                     />
                                 </svg>
 
-                                <!-- Interactive Tooltip -->
                                 <div
                                     v-if="hoveredPoint"
                                     class="chart-tooltip shadow rounded p-2"
@@ -1120,7 +1126,7 @@
                     <i class="fa fa-lock mr-1" aria-hidden="true"></i>No Reset Mode active: Tab &amp; Esc locked.
                 </span>
                 <span v-else>
-                    Press <kbd>Tab</kbd> or <kbd>Esc</kbd> to restart lesson.
+                    Press <kbd>Tab</kbd> or <kbd>Esc</kbd> to restart phrase.
                 </span>
             </span>
         </footer>
