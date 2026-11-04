@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Pure Web](https://img.shields.io/badge/dependencies-zero%20npm-88c0d0?style=for-the-badge&logo=javascript&logoColor=white)](https://github.com/AstralBearCoder/ngrams-international-3.0)
 
-**ngramInternational** is an evolution of Ranel Padon's open-source [ngram-type](https://github.com/ranelpadon/ngram-type). The original offered exercises on sub-word combinations (bigrams, trigrams, tetragrams). This project adds weakness tracking, personalized scoring, progression charts, targeted drills and 8 languages.
+![Main Typing Stage](media/video/NgramIntl.gif)
 
----
+**ngramInternational** is an evolution of Ranel Padon's open-source [ngram-type](https://github.com/ranelpadon/ngram-type). The original offered exercises on sub-word combinations (bigrams, trigrams, tetragrams). This project adds weakness tracking, personalized scoring, progression charts, targeted drills and 8 languages.
 
 ## At a Glance
 
@@ -33,12 +33,12 @@
 
 | 1. Main Typing Stage | 2. Weakness Detection & Priority Spectrum |
 | :---: | :---: |
-| ![Main Typing Stage](screen/Sh_Main.png) | ![Weakness Detection Table](screen/Sh_Weakness.png) |
+| ![Main Typing Stage](media/images/Sh_Main.png) | ![Weakness Detection Table](media/images/Sh_Weakness.png) |
 | *Dead-center stage with real-time feedback & WPM tracking* | *Personalized priority scoring & dual latency/WPM metrics* |
 
 | 3. All-Time Evolution & Progression SVG | 4. Targeted Drill Configurator |
 | :---: | :---: |
-| ![Evolution Chart](screen/Sh_Evolution.png) | ![Targeted Drill Configurator](screen/Sh_Drill.png) |
+| ![Evolution Chart](media/images/Sh_Evolution.png) | ![Targeted Drill Configurator](media/images/Sh_Drill.png) |
 | *5-sample checkpoints with Recent 100 & All-Time overview* | *Focused bottleneck training: Classic, Sandwich & Ladder* |
 
 ---
