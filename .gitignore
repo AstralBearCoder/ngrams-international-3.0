@@ -1,2 +1,7 @@
 gitignore/
 .idea/
+
+# Ignore corpus files, but keep the folder placeholder
+corpus/**
+!corpus/**/
+!corpus/**/ADDCORPUSHERE.txt
