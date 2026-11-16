@@ -13,6 +13,8 @@
     --accent: #facc15;
     --accent-dim: rgba(250, 204, 21, 0.16);
     --error: #f43f5e;
+    --error-bg: rgba(244, 63, 94, 0.12);
+    --error-dim: rgba(244, 63, 94, 0.24);
     --border-subtle: rgba(255, 255, 255, 0.08);
 }
 
@@ -26,7 +28,9 @@
     --text-muted: #9aa5b8;
     --accent: #81a1c1;
     --accent-dim: rgba(136, 192, 208, 0.18);
-    --error: #bf616a;
+    --error: #f06a6a;
+    --error-bg: rgba(240, 106, 106, 0.13);
+    --error-dim: rgba(240, 106, 106, 0.25);
     --border-subtle: rgba(236, 239, 244, 0.09);
 }
 
@@ -40,7 +44,9 @@
     --text-muted: #787166;
     --accent: #c25e1a;
     --accent-dim: rgba(194, 94, 26, 0.16);
-    --error: #b91c1c;
+    --error: #d90429;
+    --error-bg: rgba(217, 4, 41, 0.11);
+    --error-dim: rgba(217, 4, 41, 0.22);
     --border-subtle: rgba(0, 0, 0, 0.1);
 }
 
@@ -54,7 +60,9 @@
     --text-muted: #888da8;
     --accent: #b4befe;
     --accent-dim: rgba(203, 166, 247, 0.18);
-    --error: #f38ba8;
+    --error: #ff5c7a;
+    --error-bg: rgba(255, 92, 122, 0.13);
+    --error-dim: rgba(255, 92, 122, 0.25);
     --border-subtle: rgba(255, 255, 255, 0.08);
 }
 
@@ -69,6 +77,8 @@
     --accent: #10b981;
     --accent-dim: rgba(16, 185, 129, 0.18);
     --error: #f87171;
+    --error-bg: rgba(244, 63, 94, 0.09);
+    --error-dim: rgba(248, 113, 113, 0.22);
     --border-subtle: rgba(16, 185, 129, 0.22);
 }
 
@@ -83,6 +93,8 @@
     --accent: #bd93f9;
     --accent-dim: rgba(255, 121, 198, 0.18);
     --error: #ff5555;
+    --error-bg: rgba(255, 85, 85, 0.13);
+    --error-dim: rgba(255, 85, 85, 0.25);
     --border-subtle: rgba(255, 255, 255, 0.1);
 }
 
@@ -97,6 +109,8 @@
     --accent: #fe8019;
     --accent-dim: rgba(250, 189, 47, 0.18);
     --error: #fb4934;
+    --error-bg: rgba(251, 73, 52, 0.14);
+    --error-dim: rgba(251, 73, 52, 0.26);
     --border-subtle: rgba(235, 219, 178, 0.12);
 }
 
@@ -111,6 +125,8 @@
     --accent: #bb9af7;
     --accent-dim: rgba(122, 162, 247, 0.18);
     --error: #f7768e;
+    --error-bg: rgba(247, 118, 142, 0.13);
+    --error-dim: rgba(247, 118, 142, 0.25);
     --border-subtle: rgba(192, 202, 245, 0.1);
 }
 
@@ -124,11 +140,13 @@
     --text-muted: #839496;
     --accent: #b58900;
     --accent-dim: rgba(42, 161, 152, 0.2);
-    --error: #dc322f;
+    --error: #ef5350;
+    --error-bg: rgba(239, 83, 80, 0.14);
+    --error-dim: rgba(239, 83, 80, 0.26);
     --border-subtle: rgba(147, 161, 161, 0.14);
 }
 
-/* 10. CRIMSON */
+/* 10. CRIMSON — distinct amber-yellow error hue against rose/red palette */
 [data-theme="crimson"] {
     --bg-main: #141115;
     --bg-surface: #1d1820;
@@ -138,7 +156,9 @@
     --text-muted: #958899;
     --accent: #f43f5e;
     --accent-dim: rgba(244, 63, 94, 0.2);
-    --error: #e11d48;
+    --error: #facc15;
+    --error-bg: rgba(250, 204, 21, 0.13);
+    --error-dim: rgba(250, 204, 21, 0.25);
     --border-subtle: rgba(244, 63, 94, 0.2);
 }
 
@@ -152,7 +172,9 @@
     --text-muted: #8c8fa1;
     --accent: #1e66f5;
     --accent-dim: rgba(30, 102, 245, 0.15);
-    --error: #e64553;
+    --error: #d20f39;
+    --error-bg: rgba(210, 15, 57, 0.11);
+    --error-dim: rgba(210, 15, 57, 0.22);
     --border-subtle: rgba(0, 0, 0, 0.1);
 }
 
@@ -167,6 +189,8 @@
     --accent: #b58900;
     --accent-dim: rgba(181, 137, 0, 0.18);
     --error: #dc322f;
+    --error-bg: rgba(220, 50, 47, 0.12);
+    --error-dim: rgba(220, 50, 47, 0.23);
     --border-subtle: rgba(0, 0, 0, 0.12);
 }
 
@@ -180,11 +204,13 @@
     --text-muted: #7b88a1;
     --accent: #88c0d0;
     --accent-dim: rgba(136, 192, 208, 0.2);
-    --error: #bf616a;
+    --error: #d63031;
+    --error-bg: rgba(214, 48, 49, 0.11);
+    --error-dim: rgba(214, 48, 49, 0.22);
     --border-subtle: rgba(46, 52, 64, 0.1);
 }
 
-/* 14. SAKURA LIGHT (Light) */
+/* 14. SAKURA LIGHT — distinct deep amber error hue against pink palette */
 [data-theme="sakura"] {
     --bg-main: #faf4f5;
     --bg-surface: #f3e6e8;
@@ -194,7 +220,9 @@
     --text-muted: #947c84;
     --accent: #d43f6a;
     --accent-dim: rgba(212, 63, 106, 0.15);
-    --error: #c53030;
+    --error: #d97706;
+    --error-bg: rgba(217, 119, 6, 0.14);
+    --error-dim: rgba(217, 119, 6, 0.25);
     --border-subtle: rgba(74, 59, 64, 0.12);
 }
 
@@ -209,6 +237,8 @@
     --accent: #2563eb;
     --accent-dim: rgba(37, 99, 235, 0.15);
     --error: #ef4444;
+    --error-bg: rgba(239, 68, 68, 0.10);
+    --error-dim: rgba(239, 68, 68, 0.22);
     --border-subtle: rgba(0, 0, 0, 0.1);
 }
 
@@ -675,7 +705,7 @@ textarea,
     font-weight: 700;
 }
 
-/* NO RESET CARD (SLIM & CLEAN) */
+/* NO RESET CARD */
 .no-reset-toggle-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-subtle);
@@ -690,7 +720,7 @@ textarea,
 
 .no-reset-toggle-card.active-no-reset {
     border-color: var(--error) !important;
-    background-color: rgba(244, 63, 94, 0.08);
+    background-color: var(--error-bg);
 }
 
 .no-reset-toggle-card .custom-switch {
@@ -868,10 +898,12 @@ textarea,
     box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
-.clean-input.input-error {
+.clean-input.input-error,
+.clean-input.input-error:focus {
     color: var(--error) !important;
     border-color: var(--error) !important;
-    background-color: rgba(244, 63, 94, 0.08);
+    background-color: var(--error-bg) !important;
+    box-shadow: 0 0 0 3px var(--error-dim);
 }
 
 .metrics-row {
@@ -887,6 +919,70 @@ textarea,
     font-size: 1.2rem;
     margin-left: 0.2rem;
     font-variant-numeric: tabular-nums;
+}
+
+/* LIGHTWEIGHT UNFINISHED TEST ACTION BAR (HIDES ON INPUT FOCUS) */
+.unfinished-action-bar {
+    gap: 0.5rem;
+    min-height: 30px;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.unfinished-action-bar.is-hidden-focus {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.light-stage-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.76rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.light-stage-btn:hover {
+    color: var(--text-main);
+    border-color: var(--text-muted);
+    background-color: var(--bg-surface);
+}
+
+.light-stage-btn.is-saved {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+}
+
+.resume-dropdown-menu {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    width: 270px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1050;
+    padding: 0.4rem;
+}
+
+.resume-slot-item {
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.resume-slot-item:hover {
+    background-color: var(--bg-card);
 }
 
 /* ==========================================================================
@@ -1196,26 +1292,30 @@ kbd {
 /* Subtle themed scrollbar */
 .theme-dropdown-menu::-webkit-scrollbar,
 .sidebar-scrollable-content::-webkit-scrollbar,
-.weakness-scroll-box::-webkit-scrollbar {
+.weakness-scroll-box::-webkit-scrollbar,
+.resume-dropdown-menu::-webkit-scrollbar {
     width: 6px;
 }
 
 .theme-dropdown-menu::-webkit-scrollbar-track,
 .sidebar-scrollable-content::-webkit-scrollbar-track,
-.weakness-scroll-box::-webkit-scrollbar-track {
+.weakness-scroll-box::-webkit-scrollbar-track,
+.resume-dropdown-menu::-webkit-scrollbar-track {
     background: transparent;
 }
 
 .theme-dropdown-menu::-webkit-scrollbar-thumb,
 .sidebar-scrollable-content::-webkit-scrollbar-thumb,
-.weakness-scroll-box::-webkit-scrollbar-thumb {
+.weakness-scroll-box::-webkit-scrollbar-thumb,
+.resume-dropdown-menu::-webkit-scrollbar-thumb {
     background: var(--border-subtle);
     border-radius: 3px;
 }
 
 .theme-dropdown-menu::-webkit-scrollbar-thumb:hover,
 .sidebar-scrollable-content::-webkit-scrollbar-thumb:hover,
-.weakness-scroll-box::-webkit-scrollbar-thumb:hover {
+.weakness-scroll-box::-webkit-scrollbar-thumb:hover,
+.resume-dropdown-menu::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
 

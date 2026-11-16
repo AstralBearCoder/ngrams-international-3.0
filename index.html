@@ -73,7 +73,7 @@
                         type="button"
                         data-toggle="modal"
                         data-target="#profile-modal"
-                        title="Manage profiles and backups"
+                        title="Manage profiles, backups and extension sync"
                         aria-haspopup="dialog"
                     >
                         <i class="fa fa-user-circle text-accent" aria-hidden="true"></i>
@@ -246,7 +246,7 @@
                         </div>
                     </div>
 
-                    <!-- 2. NO RESET MODE (COMPACT CARD BETWEEN CORPUS AND SOURCE) -->
+                    <!-- 2. NO RESET MODE -->
                     <div class="sidebar-block">
                         <div
                             class="no-reset-toggle-card"
@@ -255,6 +255,7 @@
                             style="cursor: pointer;"
                             role="button"
                             tabindex="0"
+                            @keyup.enter.space.prevent="data.noResetMode = !data.noResetMode; save()"
                             aria-label="Toggle No Reset Mode"
                             title="Locks Tab &amp; Esc reset during phrase typing"
                         >
@@ -385,6 +386,7 @@
 
                     <div class="target-phrase-box mb-4" aria-label="Text to type" aria-live="polite">
                         <span v-if="expectedPhrase">{{ expectedPhrase }}</span>
+                        <span v-else-if="corpusLoadError" class="text-danger" style="font-size: 1rem;">{{ corpusLoadError }}</span>
                         <span v-else class="text-muted font-italic">Loading corpus text...</span>
                     </div>
 
@@ -403,6 +405,8 @@
                             data-1p-ignore
                             data-form-type="other"
                             :placeholder="data.noResetMode ? 'No Reset Mode: Finish phrase required.' : 'Type here. Press <TAB> or <ESC> to restart phrase.'"
+                            @focus="onInputFocus"
+                            @blur="onInputBlur"
                             v-on:keyup="keyHandler"
                             autofocus
                         >
@@ -412,6 +416,79 @@
                         <span class="metric-item">WPM: <strong>{{ rawWPM }}</strong></span>
                         <span class="metric-item">Accuracy: <strong>{{ accuracy }}%</strong></span>
                         <span class="metric-item">Average WPM: <strong>{{ averageWPM }}</strong></span>
+                    </div>
+
+                    <!-- Light button below the text area: disappears when the text box is selected -->
+                    <div
+                        class="unfinished-action-bar mt-3 d-flex justify-content-center align-items-center flex-wrap"
+                        :class="{ 'is-hidden-focus': isTypingInputFocused }"
+                        :aria-hidden="isTypingInputFocused ? 'true' : 'false'"
+                    >
+                        <button
+                            v-if="expectedPhrase"
+                            type="button"
+                            class="light-stage-btn"
+                            :class="{ 'is-saved': isCurrentStateSaved || unfinishedJustSaved }"
+                            :tabindex="isTypingInputFocused ? -1 : 0"
+                            @click="saveCurrentUnfinishedTest"
+                            title="Commit completed phrases to Weaknesses &amp; bookmark this test to continue later"
+                        >
+                            <i :class="['fa mr-1', (isCurrentStateSaved || unfinishedJustSaved) ? 'fa-check' : 'fa-bookmark-o']" aria-hidden="true"></i>
+                            {{ (isCurrentStateSaved || unfinishedJustSaved) ? 'Saved' : 'Save unfinished test' }}
+                        </button>
+
+                        <button
+                            v-if="hasUnfinishedProgress && !data.noResetMode"
+                            type="button"
+                            class="light-stage-btn"
+                            :tabindex="isTypingInputFocused ? -1 : 0"
+                            @click="discardUnfinishedTest"
+                            title="Start a fresh test for the current mode"
+                        >
+                            <i class="fa fa-refresh mr-1" aria-hidden="true"></i>New test
+                        </button>
+
+                        <div v-if="savedUnfinishedList.length > 0" class="position-relative" @click.stop>
+                            <button
+                                type="button"
+                                class="light-stage-btn"
+                                :tabindex="isTypingInputFocused ? -1 : 0"
+                                @click="toggleResumeMenu"
+                                title="Resume any saved unfinished test"
+                            >
+                                <i class="fa fa-history mr-1" aria-hidden="true"></i>Saved ({{ savedUnfinishedList.length }})
+                            </button>
+
+                            <div v-show="showResumeMenu" class="resume-dropdown-menu shadow text-left" @click.stop>
+                                <div class="dropdown-header-custom">Saved Unfinished Tests</div>
+                                <div
+                                    v-for="slot in savedUnfinishedList"
+                                    :key="slot.key"
+                                    class="resume-slot-item d-flex justify-content-between align-items-center"
+                                    @click="resumeSavedUnfinishedSlot(slot.key)"
+                                >
+                                    <div class="pr-2">
+                                        <div class="small font-weight-bold text-main">
+                                            {{ slot.corpusLabel }} &middot; {{ slot.sourceLabel }}
+                                            <span v-if="slot.scope" class="text-muted font-weight-normal">(Top {{ slot.scope }})</span>
+                                            <span v-if="slot.quAsOneChar" class="badge badge-info ml-1" style="font-size: 0.62rem;">qu=1</span>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 0.7rem;">
+                                            Lesson {{ slot.phrasesCurrentIndex + 1 }}/{{ slot.totalPhrases }} &middot; {{ slot.variantLabel }}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm text-danger p-1"
+                                        @click.stop="deleteSavedUnfinishedSlot(slot.key)"
+                                        title="Remove saved bookmark"
+                                        aria-label="Remove saved bookmark"
+                                    >
+                                        <i class="fa fa-times" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                 </div>
@@ -482,19 +559,23 @@
                             </div>
                         </div>
 
-                        <div class="p-3 drill-config-card d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="small font-weight-bold text-accent d-block">JSON Data Backup</span>
-                                <span class="small text-muted">Export or restore all profile statistics.</span>
+                        <div class="p-3 drill-config-card">
+                            <div class="mb-2">
+                                <span class="small font-weight-bold text-accent d-block">JSON Data Backup &amp; Extension Sync</span>
+                                <span class="small text-muted">Export/restore backups, or merge <code>extension-ngram-multi-tests</code> JSON directly into <strong>{{ currentProfile.name }}</strong>.</span>
                             </div>
-                            <div class="d-flex">
-                                <button type="button" class="btn btn-sm btn-outline-secondary mr-2" @click="exportProfileData">
+                            <div class="d-flex flex-wrap" style="gap: 0.45rem;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="exportProfileData">
                                     <i class="fa fa-download mr-1" aria-hidden="true"></i> Export
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-accent" @click="$refs.fileInput.click()">
-                                    <i class="fa fa-upload mr-1" aria-hidden="true"></i> Import
+                                <button type="button" class="btn btn-sm btn-outline-accent" @click="$refs.fileInput.click()" title="Import by profile name in JSON">
+                                    <i class="fa fa-upload mr-1" aria-hidden="true"></i> Import Profile
+                                </button>
+                                <button type="button" class="btn btn-sm btn-accent" @click="$refs.profileExtFileInput.click()" title="Merge extension JSON stats into active profile">
+                                    <i class="fa fa-plug mr-1" aria-hidden="true"></i> Import Ext. JSON
                                 </button>
                                 <input type="file" ref="fileInput" style="display:none" accept=".json" @change="importProfileData">
+                                <input type="file" ref="profileExtFileInput" style="display:none" accept=".json" @change="importExtensionToActiveProfile">
                             </div>
                         </div>
                     </div>
@@ -529,46 +610,72 @@
                     <div class="modal-body pt-1">
 
                         <!-- Drill Action Banner -->
-                        <div class="drill-launch-banner p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="drill-launch-banner p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center" style="gap: 0.75rem;">
                             <div>
                                 <span class="font-weight-bold text-main d-block">
-                                    <i class="fa fa-crosshairs text-accent mr-1" aria-hidden="true"></i>Targeted Drill Training
+                                    <i class="fa fa-crosshairs text-accent mr-1" aria-hidden="true"></i>Targeted Drill &amp; Calibration Training
                                 </span>
-                                <small class="text-muted">Generate focused exercises from your identified bottlenecks.</small>
+                                <small class="text-muted">Drill your weakest/slowest n-grams or calibrate n-grams under 50 occurrences.</small>
                             </div>
-                            <button
-                                type="button"
-                                class="btn btn-sm btn-accent font-weight-bold px-3 py-2"
-                                @click="openDrillModal"
-                                :disabled="activeListAvailableCount === 0"
-                            >
-                                <i class="fa fa-play mr-1" aria-hidden="true"></i> Configure &amp; Start Drill
-                            </button>
+                            <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-accent font-weight-bold px-3 py-2"
+                                    @click="openCalibrationDrillModal"
+                                    title="Prepare a drill with all n-grams under 50 occurrences to calibrate faster"
+                                >
+                                    <i class="fa fa-tachometer mr-1" aria-hidden="true"></i> Calibrate (&lt; 50)
+                                    <span class="badge badge-pill badge-accent-counter ml-1">{{ calibrationEligibleCount }}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-accent font-weight-bold px-3 py-2"
+                                    @click="openDrillModal"
+                                    :disabled="activeListAvailableCount === 0"
+                                >
+                                    <i class="fa fa-play mr-1" aria-hidden="true"></i> Configure &amp; Start Drill
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- 2-Line Controls Header -->
+                        <!-- Controls Header -->
                         <div class="weakness-controls-wrapper mb-3">
-                            <div class="d-flex align-items-center mb-2">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2" style="gap: 0.5rem;">
                                 <ul class="nav nav-pills weakness-nav-pills" role="tablist">
                                     <li class="nav-item">
                                         <button type="button" :class="['nav-link', { active: activeWeakTab === 'bigrams' }]" @click="activeWeakTab = 'bigrams'">
-                                            Bigrams ({{ weakBigrams.length }})
+                                            Bigrams ({{ filteredWeakBigrams.length }})
                                         </button>
                                     </li>
                                     <li class="nav-item">
                                         <button type="button" :class="['nav-link', { active: activeWeakTab === 'trigrams' }]" @click="activeWeakTab = 'trigrams'">
-                                            Trigrams ({{ weakTrigrams.length }})
+                                            Trigrams ({{ filteredWeakTrigrams.length }})
                                         </button>
                                     </li>
                                     <li class="nav-item">
                                         <button type="button" :class="['nav-link', { active: activeWeakTab === 'tetragrams' }]" @click="activeWeakTab = 'tetragrams'">
-                                            Tetragrams ({{ weakTetragrams.length }})
+                                            Tetragrams ({{ filteredWeakTetragrams.length }})
                                         </button>
                                     </li>
                                 </ul>
+
+                                <!-- Corpus Frequency Scope Filter -->
+                                <div class="d-flex align-items-center flex-wrap" style="gap: 0.35rem;">
+                                    <span class="small text-muted font-weight-bold mr-1">Corpus Scope:</span>
+                                    <button
+                                        v-for="sc in ['all', 50, 100, 200, 500]"
+                                        :key="'w-scope-' + sc"
+                                        type="button"
+                                        :class="['sort-pill-btn', { active: weaknessCorpusScope === sc }]"
+                                        @click="weaknessCorpusScope = sc"
+                                        :title="sc === 'all' ? 'Show all tracked n-grams' : 'Show only n-grams ranked in Top ' + sc + ' of corpus'"
+                                    >
+                                        {{ sc === 'all' ? 'All' : 'Top ' + sc }}
+                                    </button>
+                                </div>
                             </div>
 
-                            <div class="d-flex flex-wrap justify-content-between align-items-center pt-1 border-top border-subtle">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center pt-2 border-top border-subtle">
                                 <div class="d-flex align-items-center flex-wrap" style="gap: 0.4rem;">
                                     <span class="small text-muted font-weight-bold mr-1">Sort by:</span>
                                     <button
@@ -618,7 +725,7 @@
                                 <thead>
                                     <tr>
                                         <th scope="col" style="width: 5%;">#</th>
-                                        <th scope="col" style="width: 15%;">N-gram</th>
+                                        <th scope="col" style="width: 17%;">N-gram</th>
                                         <th scope="col" style="width: 17%;">
                                             Priority
                                             <i class="fa fa-question-circle text-muted ml-1"
@@ -626,7 +733,7 @@
                                                title="Impact on your typing speed: Personal difficulty relative to your baseline × Corpus frequency"
                                                aria-hidden="true"></i>
                                         </th>
-                                        <th scope="col" style="width: 25%;">Fluidity Spectrum</th>
+                                        <th scope="col" style="width: 23%;">Fluidity Spectrum</th>
                                         <th scope="col" style="width: 20%;">Speed / Latency</th>
                                         <th scope="col" style="width: 12%;">Errors</th>
                                         <th scope="col" style="width: 6%; text-align: center;">History</th>
@@ -646,12 +753,11 @@
                                         <td class="text-muted">#{{ idx + 1 }}</td>
                                         <td>
                                             <span class="font-code font-weight-bold text-accent">{{ item.ngram }}</span>
-                                            <!-- Corpus Frequency Rank Pastille -->
                                             <span class="badge badge-corpus-rank ml-1 font-code" :title="'Corpus frequency rank: #' + item.corpusRank">
                                                 #{{ item.corpusRank }}
                                             </span>
-                                            <span v-if="item.isRelegated" class="badge badge-secondary ml-1" style="font-size: 0.65rem;" title="Under statistical threshold">
-                                                {{ item.totalCount }}/20
+                                            <span v-if="item.totalCount < 50" class="badge badge-secondary ml-1" style="font-size: 0.65rem;" title="Occurrences recorded (calibration < 50)">
+                                                {{ item.totalCount }}/50
                                             </span>
                                         </td>
                                         <td>
@@ -665,8 +771,14 @@
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="font-weight-bold text-main">{{ item.avgTime }}ms</span>
-                                            <span class="text-muted small ml-1 font-code">(~{{ item.wpm }} WPM)</span>
+                                            <template v-if="item.hasSpeedData">
+                                                <span class="font-weight-bold text-main">{{ item.avgTime }}ms</span>
+                                                <span class="text-muted small ml-1 font-code">(~{{ item.wpm }} WPM)</span>
+                                            </template>
+                                            <template v-else>
+                                                <span class="text-muted">—</span>
+                                                <span class="text-danger small ml-1 font-code">(errors only)</span>
+                                            </template>
                                         </td>
                                         <td>
                                             <span :class="item.errors > 0 ? 'text-danger font-weight-bold' : 'text-muted'">
@@ -679,7 +791,7 @@
                                     </tr>
                                     <tr v-if="!activeWeakList.length">
                                         <td colspan="7" class="text-center text-muted py-4">
-                                            No tracked weak links found. Complete tests to build stats!
+                                            No tracked weak links found for this scope. Complete tests or import extension JSON!
                                         </td>
                                     </tr>
                                 </tbody>
@@ -687,16 +799,22 @@
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center mt-2 px-1 text-muted" style="font-size: 0.72rem;">
-                            <span><i class="fa fa-info-circle mr-1" aria-hidden="true"></i>Click any row to open the all-time evolution chart.</span>
+                            <span><i class="fa fa-info-circle mr-1" aria-hidden="true"></i>Click any row to open the all-time evolution chart. Errors are excluded from latency calculations.</span>
                             <span>{{ activeListAvailableCount }} items tracked</span>
                         </div>
 
                     </div>
 
-                    <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
-                        <button type="button" class="btn btn-sm btn-outline-danger" @click="resetLanguageWeakStats">
-                            <i class="fa fa-trash mr-1" aria-hidden="true"></i> Reset {{ readableCorpusName }} Stats
-                        </button>
+                    <div class="modal-footer border-0 pt-0 d-flex flex-wrap justify-content-between" style="gap: 0.5rem;">
+                        <div class="d-flex flex-wrap" style="gap: 0.5rem;">
+                            <button type="button" class="btn btn-sm btn-outline-danger" @click="resetLanguageWeakStats">
+                                <i class="fa fa-trash mr-1" aria-hidden="true"></i> Reset {{ readableCorpusName }} Stats
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-accent" @click="$refs.weaknessExtFileInput.click()" title="Import extension-ngram-multi-tests JSON into active profile">
+                                <i class="fa fa-plug mr-1" aria-hidden="true"></i> Import Ext. JSON
+                            </button>
+                            <input type="file" ref="weaknessExtFileInput" style="display:none" accept=".json" @change="importExtensionToActiveProfile">
+                        </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-dismiss="modal">Close</button>
                     </div>
 
@@ -720,7 +838,34 @@
 
                     <div class="modal-body pt-2">
 
-                        <!-- 1. Target N-gram Type Selector -->
+                        <!-- 1. Drill Focus -->
+                        <div class="mb-3">
+                            <label class="block-title">Drill Focus</label>
+                            <div class="btn-group btn-group-sm w-100" role="group" aria-label="Drill focus">
+                                <button
+                                    type="button"
+                                    :class="['btn', drillFocus === 'ranked' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillFocus = 'ranked'"
+                                >
+                                    <i class="fa fa-bolt mr-1"></i> Weakest / Ranked
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillFocus === 'calibrate50' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillFocus = 'calibrate50'; drillScope = 'all'"
+                                >
+                                    <i class="fa fa-tachometer mr-1"></i> Calibrate (&lt; 50 occ.)
+                                </button>
+                            </div>
+                            <div v-if="drillFocus === 'calibrate50'" class="mt-2 custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="calibrate-include-unseen" v-model="calibrateIncludeUnseen">
+                                <label class="custom-control-label small text-muted" for="calibrate-include-unseen">
+                                    Also include unseen n-grams (0 occurrences) in selected corpus scope
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 2. Target N-gram Type Selector -->
                         <div class="mb-3">
                             <label class="block-title">Target N-gram Type</label>
                             <div class="btn-group btn-group-sm w-100" role="group" aria-label="N-gram type">
@@ -748,7 +893,51 @@
                             </div>
                         </div>
 
-                        <!-- 2. Drill Mode Selector -->
+                        <!-- 3. Ranking Criteria (when Ranked) -->
+                        <div class="mb-3" v-if="drillFocus === 'ranked'">
+                            <label class="block-title">Selection Criteria</label>
+                            <div class="btn-group btn-group-sm w-100" role="group" aria-label="Drill sort criteria">
+                                <button
+                                    type="button"
+                                    :class="['btn', drillSortBy === 'priority' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillSortBy = 'priority'"
+                                >
+                                    Priority
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillSortBy === 'latency' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillSortBy = 'latency'"
+                                >
+                                    Slowest (Latency)
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="['btn', drillSortBy === 'error' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillSortBy = 'error'"
+                                >
+                                    Most Errors
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 4. Corpus Frequency Filter -->
+                        <div class="mb-3">
+                            <label class="block-title">Corpus Frequency Filter</label>
+                            <div class="btn-group btn-group-sm w-100" role="group" aria-label="Corpus scope filter">
+                                <button
+                                    v-for="sc in ['all', 50, 100, 200, 500]"
+                                    :key="'d-cscope-' + sc"
+                                    type="button"
+                                    :class="['btn', drillCorpusScope === sc ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
+                                    @click="drillCorpusScope = sc"
+                                >
+                                    {{ sc === 'all' ? 'All' : 'Top ' + sc }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 5. Drill Mode Selector -->
                         <div class="mb-3">
                             <label class="block-title">Drill Mode</label>
                             <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Drill mode">
@@ -777,25 +966,25 @@
                             <small class="text-muted d-block font-italic">{{ drillModeDescription }}</small>
                         </div>
 
-                        <!-- 3. Target Scope & Filters -->
+                        <!-- 6. Target Scope & Filters -->
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="block-title mb-0">Target Scope &amp; Filters</label>
+                                <label class="block-title mb-0">Drill Quantity &amp; Filters</label>
                                 <small class="text-muted">{{ drillPoolCount }} matching available</small>
                             </div>
                             <div class="btn-group btn-group-sm w-100 mb-2">
                                 <button
-                                    v-for="qty in [10, 25, 50, 100, 200, 500]"
-                                    :key="qty"
+                                    v-for="qty in [10, 25, 50, 100, 200, 500, 'all']"
+                                    :key="'d-qty-' + qty"
                                     type="button"
                                     :class="['btn', drillScope === qty ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
                                     @click="drillScope = qty"
                                 >
-                                    Top {{ qty }}
+                                    {{ qty === 'all' ? 'All' : qty }}
                                 </button>
                             </div>
 
-                            <div class="d-flex gap-2" style="gap: 0.5rem;">
+                            <div class="d-flex" style="gap: 0.5rem;">
                                 <button
                                     type="button"
                                     :class="['btn btn-sm flex-fill', drillFilterCaps ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
@@ -815,7 +1004,7 @@
                             </div>
                         </div>
 
-                        <!-- 4. Rules & Thresholds -->
+                        <!-- 7. Rules & Thresholds -->
                         <div class="mb-2">
                             <label class="block-title">Rules &amp; Thresholds</label>
                             <div class="interactive-rules-list">
@@ -905,8 +1094,10 @@
                                 <strong class="font-code text-main" style="font-size: 1.15rem;">{{ selectedNgramData.totalCount }}</strong>
                             </div>
                             <div class="col drill-config-card p-2 text-center">
-                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Recent Avg Latency</small>
-                                <strong class="font-code text-accent" style="font-size: 1.15rem;">{{ selectedNgramData.avgTime }}ms</strong>
+                                <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Clean Avg Latency</small>
+                                <strong class="font-code text-accent" style="font-size: 1.15rem;">
+                                    {{ selectedNgramData.hasSpeedData ? selectedNgramData.avgTime + 'ms' : '—' }}
+                                </strong>
                             </div>
                             <div class="col drill-config-card p-2 text-center">
                                 <small class="text-muted text-uppercase d-block font-weight-bold" style="font-size: 0.65rem;">Recent Error Rate</small>
@@ -930,7 +1121,7 @@
                         <div v-if="selectedNgramData.totalCount < 50" class="p-3 drill-config-card mb-3 text-center">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="small font-weight-bold text-accent">
-                                    <i class="fa fa-hourglass-half mr-1"></i>Calibration Phase (5-sample checkpoints)
+                                    <i class="fa fa-hourglass-half mr-1"></i>Calibration Phase (&lt; 50 occurrences)
                                 </span>
                                 <span class="small font-code text-muted">{{ selectedNgramData.totalCount }} / 50 samples</span>
                             </div>
@@ -942,7 +1133,7 @@
                                 ></div>
                             </div>
                             <small class="text-muted d-block">
-                                {{ 50 - selectedNgramData.totalCount }} more occurrences required to unlock full All-Time overview. Displaying recorded 5-occurrence blocks below.
+                                {{ 50 - selectedNgramData.totalCount }} more occurrences required to unlock full All-Time overview. Displaying recorded checkpoints below.
                             </small>
                         </div>
 
@@ -951,7 +1142,7 @@
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                                 <div class="d-flex align-items-center">
                                     <span class="small font-weight-bold text-muted text-uppercase mr-3">
-                                        Progression ({{ selectedNgramData.viewMode === 'recent' ? 'Recent 100 Occurrences' : 'All-Time Overview' }})
+                                        Progression ({{ selectedNgramData.viewMode === 'recent' ? 'Recent Checkpoints' : 'All-Time Overview' }})
                                     </span>
                                     <div class="btn-group btn-group-sm" v-if="selectedNgramData.totalCount >= 50">
                                         <button
@@ -959,7 +1150,7 @@
                                             :class="['btn py-0 px-2 btn-xs', evolutionViewMode === 'recent' ? 'btn-accent font-weight-bold' : 'btn-outline-secondary text-muted']"
                                             @click="setEvolutionViewMode('recent')"
                                         >
-                                            Recent 100
+                                            Recent
                                         </button>
                                         <button
                                             type="button"
@@ -1029,7 +1220,15 @@
                                     :style="{ left: hoveredPoint.tooltipLeft + 'px', top: hoveredPoint.tooltipTop + 'px' }"
                                 >
                                     <div class="small font-weight-bold text-accent">{{ hoveredPoint.label }}</div>
-                                    <div class="small text-main">Avg Latency: <strong>{{ hoveredPoint.avgTime }}ms</strong> <span class="text-muted font-code">(~{{ hoveredPoint.wpm }} WPM)</span></div>
+                                    <div class="small text-main">
+                                        Clean Avg Latency:
+                                        <template v-if="!hoveredPoint.noCleanSpeed">
+                                            <strong>{{ hoveredPoint.avgTime }}ms</strong> <span class="text-muted font-code">(~{{ hoveredPoint.wpm }} WPM)</span>
+                                        </template>
+                                        <template v-else>
+                                            <strong class="text-danger">— (0 clean)</strong>
+                                        </template>
+                                    </div>
                                     <div class="small" :class="hoveredPoint.errorCount > 0 ? 'text-danger font-weight-bold' : 'text-muted'">
                                         Errors: {{ hoveredPoint.errorCount }} / {{ hoveredPoint.count }} ({{ hoveredPoint.errorRate }}%)
                                     </div>
@@ -1038,8 +1237,8 @@
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-secondary small text-muted">
-                                <span><span class="chart-legend-dot bg-accent"></span> Latency per checkpoint</span>
-                                <span><span class="chart-legend-dot bg-danger"></span> Block contains errors</span>
+                                <span><span class="chart-legend-dot bg-accent"></span> Clean latency per checkpoint</span>
+                                <span><span class="chart-legend-dot bg-danger"></span> Checkpoint contains errors</span>
                                 <span class="font-italic">Hover point for details</span>
                             </div>
                         </div>
@@ -1048,7 +1247,7 @@
                             <i class="fa fa-info-circle fa-2x text-muted mb-2 d-block"></i>
                             <h6 class="font-weight-bold text-accent">Gathering First Block</h6>
                             <p class="small text-muted mb-0">
-                                Need at least 5 occurrences to record your first evolution checkpoint (currently {{ selectedNgramData.totalCount }} / 5).
+                                Need at least 5 occurrences (or an imported extension test) to record your first evolution checkpoint (currently {{ selectedNgramData.totalCount }} / 5).
                             </p>
                         </div>
 
