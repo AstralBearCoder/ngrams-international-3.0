@@ -562,7 +562,13 @@
                         <div class="p-3 drill-config-card">
                             <div class="mb-2">
                                 <span class="small font-weight-bold text-accent d-block">JSON Data Backup &amp; Extension Sync</span>
-                                <span class="small text-muted">Export/restore backups, or merge <code>extension-ngram-multi-tests</code> JSON directly into <strong>{{ currentProfile.name }}</strong>.</span>
+                                <span class="small text-muted">
+                                    Export/restore backups, or merge
+                                    <a href="https://github.com/AstralBearCoder/extension-ngram-multi-tests" target="_blank" rel="noopener noreferrer" class="text-accent font-weight-bold">
+                                        <i class="fa fa-github mr-1" aria-hidden="true"></i>extension-ngram-multi-tests
+                                    </a>
+                                    JSON directly into <strong>{{ currentProfile.name }}</strong> (Monkeytype, TypeRacer, 10FastFingers).
+                                </span>
                             </div>
                             <div class="d-flex flex-wrap" style="gap: 0.45rem;">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" @click="exportProfileData">
@@ -806,7 +812,7 @@
                     </div>
 
                     <div class="modal-footer border-0 pt-0 d-flex flex-wrap justify-content-between" style="gap: 0.5rem;">
-                        <div class="d-flex flex-wrap" style="gap: 0.5rem;">
+                        <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
                             <button type="button" class="btn btn-sm btn-outline-danger" @click="resetLanguageWeakStats">
                                 <i class="fa fa-trash mr-1" aria-hidden="true"></i> Reset {{ readableCorpusName }} Stats
                             </button>
@@ -814,6 +820,15 @@
                                 <i class="fa fa-plug mr-1" aria-hidden="true"></i> Import Ext. JSON
                             </button>
                             <input type="file" ref="weaknessExtFileInput" style="display:none" accept=".json" @change="importExtensionToActiveProfile">
+                            <a
+                                href="https://github.com/AstralBearCoder/extension-ngram-multi-tests"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="btn btn-sm btn-link text-muted px-2"
+                                title="Get the Chrome &amp; Firefox companion extension on GitHub"
+                            >
+                                <i class="fa fa-github mr-1" aria-hidden="true"></i>Get Extension
+                            </a>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-dismiss="modal">Close</button>
                     </div>
@@ -1270,7 +1285,7 @@
             </div>
         </div>
 
-        <!-- MODAL: FORK ATTRIBUTION -->
+        <!-- MODAL: FORK ATTRIBUTION & EXTENSION INFO -->
         <div id="fork-disclaimer-modal" class="modal fade" role="dialog" tabindex="-1" aria-labelledby="disclaimerModalTitle" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content custom-modal-box">
@@ -1283,9 +1298,25 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p class="small text-muted mb-2">
+                        <p class="small text-muted mb-3">
                             High-performance multilingual fork of <a href="https://github.com/ranelpadon/ngram-type" target="_blank" rel="noopener noreferrer" class="text-accent">ngram-type</a> by <strong>Ranel Padon</strong>.
                         </p>
+                        <div class="p-3 drill-config-card">
+                            <div class="small font-weight-bold text-accent mb-1">
+                                <i class="fa fa-plug mr-1" aria-hidden="true"></i>Companion Browser Extension (Chrome &amp; Firefox)
+                            </div>
+                            <p class="small text-muted mb-2">
+                                Want to analyze your real-world typing? Capture n-gram speed and error data on <strong>Monkeytype</strong>, <strong>TypeRacer</strong>, and <strong>10FastFingers</strong>, then import it via <strong>Import Ext. JSON</strong> in Weaknesses or Profiles.
+                            </p>
+                            <a
+                                href="https://github.com/AstralBearCoder/extension-ngram-multi-tests"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="btn btn-sm btn-outline-accent font-weight-bold"
+                            >
+                                <i class="fa fa-github mr-1" aria-hidden="true"></i>View Extension on GitHub
+                            </a>
+                        </div>
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-sm btn-accent font-weight-bold" @click="acknowledgeDisclaimer">
@@ -1329,6 +1360,52 @@
                 </span>
             </span>
         </footer>
+
+        <!-- Floating Companion Extension Toast (non-blocking) -->
+        <aside
+            v-if="showExtensionPromo"
+            class="extension-promo-toast shadow"
+            role="complementary"
+            aria-label="Companion browser extension notice"
+            @click.stop
+        >
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <span class="small font-weight-bold text-accent">
+                    <i class="fa fa-plug mr-1" aria-hidden="true"></i>Collect Stats Anywhere
+                </span>
+                <button
+                    type="button"
+                    class="toast-close-btn"
+                    @click="dismissExtensionPromo(false)"
+                    title="Close for now"
+                    aria-label="Close notice"
+                >
+                    &times;
+                </button>
+            </div>
+            <p class="toast-body-text mb-2">
+                Use the companion extension (Chrome &amp; Firefox) to record n-gram data on
+                <strong>Monkeytype</strong>, <strong>TypeRacer</strong>, and <strong>10FastFingers</strong>,
+                then import it via <strong>Import Ext. JSON</strong>.
+            </p>
+            <div class="d-flex justify-content-between align-items-center">
+                <a
+                    href="https://github.com/AstralBearCoder/extension-ngram-multi-tests"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-xs btn-accent font-weight-bold"
+                >
+                    <i class="fa fa-github mr-1" aria-hidden="true"></i>Get Extension
+                </a>
+                <button
+                    type="button"
+                    class="toast-never-btn"
+                    @click="dismissExtensionPromo(true)"
+                >
+                    Don't show again
+                </button>
+            </div>
+        </aside>
 
     </div>
 </body>

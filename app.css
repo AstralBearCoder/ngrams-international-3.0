@@ -264,7 +264,8 @@ body,
 .custom-modal-box,
 .drill-config-card,
 .weakness-table,
-.app-footer {
+.app-footer,
+.extension-promo-toast {
     transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -1289,6 +1290,67 @@ kbd {
     vertical-align: middle;
 }
 
+/* ==========================================================================
+   FLOATING COMPANION EXTENSION TOAST
+   ========================================================================== */
+
+.extension-promo-toast {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 2.35rem;
+    width: 330px;
+    max-width: calc(100vw - 1.5rem);
+    background-color: var(--bg-surface);
+    border: 1.5px solid var(--accent);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    z-index: 1035;
+}
+
+.toast-body-text {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+.toast-body-text strong {
+    color: var(--text-main);
+}
+
+.toast-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: 0 0.2rem;
+    cursor: pointer;
+}
+
+.toast-close-btn:hover {
+    color: var(--text-main);
+}
+
+.toast-never-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0.15rem 0.25rem;
+}
+
+.toast-never-btn:hover {
+    color: var(--text-main);
+}
+
+.btn-xs {
+    padding: 0.2rem 0.55rem;
+    font-size: 0.74rem;
+    border-radius: 5px;
+}
+
 /* Subtle themed scrollbar */
 .theme-dropdown-menu::-webkit-scrollbar,
 .sidebar-scrollable-content::-webkit-scrollbar,
@@ -1322,6 +1384,12 @@ kbd {
 @media (max-width: 576px) {
     .app-brand-centered {
         display: none;
+    }
+    .extension-promo-toast {
+        left: 0.75rem;
+        right: 0.75rem;
+        width: auto;
+        bottom: 2.1rem;
     }
 }
 

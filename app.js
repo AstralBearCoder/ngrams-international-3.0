@@ -1,12 +1,12 @@
 /**
  * ngramInternational — Core Typing, Statistical Weakness & Evolution Engine
  * v6.3 Multilingual Precision Engine:
- * - Surgical per-character IKI & Backspace isolation: errors and Backspaces never contaminate clean n-gram speed.
+ * - Live per-attempt IKI state machine matching extension-ngram-multi-tests (commit 3908122):
+ *   charTs (Float64), charOk, charDirty (mistypes only), charEpoch (incremented on deletion), winErr per (unitEnd, len).
  * - Native fmt: 5 telemetry schema ([okCount, okSumMs, errCount, timestamp] + cur) with full fmt: 4 upconversion.
  * - Seamless extension-ngram-multi-tests (v2.0.0) JSON import & checkpoint deduplication.
- * - Hybrid Method C save/resume: auto-draft crash protection + light button below stage that commits completed phrases
- *   to Weaknesses (zero double-counting) and bookmarks remaining deck per test type.
- * - Weakness corpus scope filtering (Top 50/100/200/500/All) & matching slowest/error/calibration (<50 occ.) drills.
+ * - Hybrid Method C save/resume + Weaknesses corpus scope filtering & calibration (<50 occ.) drills.
+ * - Non-blocking companion extension toast with permanent dismiss option.
  */
 
 const LANGUAGE_ANCHORS = Object.freeze({
@@ -398,6 +398,7 @@ const ngramTypeConfig = {
             showThemeMenu: false,
             showAudioMenu: false,
             showResumeMenu: false,
+            showExtensionPromo: false,
             isTypingInputFocused: true,
             corpusLoadError: '',
             newProfileInput: '',
@@ -481,6 +482,7 @@ const ngramTypeConfig = {
             unfinishedJustSaved: false,
 
             currentWordIdx: 0,
+            wordEpoch: 0,
             phraseWordRanges: [],
             lastInputLength: 0,
             lastInputValue: '',
@@ -734,9 +736,12 @@ const ngramTypeConfig = {
         this._suppressSourceWatcher = false;
         this._saveFlashTimer = null;
 
+        // Per-word fixed-capacity live IKI state machine buffers
         this.wordCharTs = new Float64Array(128);
         this.wordCharOk = new Uint8Array(128);
         this.wordCharDirty = new Uint8Array(128);
+        this.wordCharEpoch = new Int32Array(128);
+        this.wordWinErr = new Uint8Array(128 * 3);
 
         this.custom_words = safeStorage.get('ngram_custom_words_backup', []);
     },
@@ -759,6 +764,8 @@ const ngramTypeConfig = {
         if (!safeStorage.getString('ngramForkDisclaimerSeen')) {
             $('#fork-disclaimer-modal').modal('show');
         }
+
+        this.showExtensionPromo = !safeStorage.getString('ngramExtensionPromoDismissed');
 
         this.applyTheme(this.data.theme || 'dracula');
 
@@ -1245,7 +1252,6 @@ const ngramTypeConfig = {
             const ds = this.dataSource;
             if (!ds || !Array.isArray(ds.phrases) || !ds.phrases.length) return;
 
-            // 1. Method C: Flush any completed-phrase telemetry recorded so far into Weaknesses (silently, no modal)
             const hasStaged = Object.keys(this.currentTestStaging).length > 0;
             if (hasStaged || this.currentTestKeystrokes > 0) {
                 const shouldIncrement = hasStaged && !this.currentSessionCounted;
@@ -1256,7 +1262,6 @@ const ngramTypeConfig = {
                 this.refreshWeakStats();
             }
 
-            // 2. Save bookmark slot (max 1 per test type: corpus|variant|source)
             const key = this.getCurrentSlotKey();
             const map = Object.assign({}, this.savedUnfinishedSlots);
             map[key] = {
@@ -1349,6 +1354,13 @@ const ngramTypeConfig = {
             $('#fork-disclaimer-modal').modal('hide');
         },
 
+        dismissExtensionPromo(permanent = false) {
+            this.showExtensionPromo = false;
+            if (permanent) {
+                safeStorage.setString('ngramExtensionPromoDismissed', 'true');
+            }
+        },
+
         stepValue(field, delta, min, max) {
             const target = this.data[this.data.source];
             if (!target) return;
@@ -1423,7 +1435,6 @@ const ngramTypeConfig = {
             const ds = this.dataSource;
             if (!ds) return;
             ds.scope = sc;
-            // Do NOT delete any saved bookmark in savedUnfinishedSlots when changing Top scope!
             this.resetSessionCounters();
             const restored = this.tryRestoreDraftOrSlot(sc);
             if (!restored) {
@@ -1689,94 +1700,126 @@ const ngramTypeConfig = {
         },
 
         // =====================================================================
-        // SURGICAL PER-CHARACTER IKI & BACKSPACE ISOLATION ENGINE
+        // LIVE PER-ATTEMPT IKI STATE MACHINE (commit 3908122 parity)
         // =====================================================================
 
-        ensureWordBufferCapacity(neededLen) {
-            if (neededLen <= this.wordCharTs.length) return;
-            const nextCap = Math.max(neededLen + 32, this.wordCharTs.length * 2);
-            const newTs = new Float64Array(nextCap);
-            const newOk = new Uint8Array(nextCap);
-            const newDirty = new Uint8Array(nextCap);
-            newTs.set(this.wordCharTs);
-            newOk.set(this.wordCharOk);
-            newDirty.set(this.wordCharDirty);
-            this.wordCharTs = newTs;
-            this.wordCharOk = newOk;
-            this.wordCharDirty = newDirty;
+        ensureWordBufferCapacity(charLen, unitLen) {
+            if (charLen > this.wordCharTs.length) {
+                const nextCharCap = Math.max(charLen + 32, this.wordCharTs.length * 2);
+                const newTs = new Float64Array(nextCharCap);
+                const newOk = new Uint8Array(nextCharCap);
+                const newDirty = new Uint8Array(nextCharCap);
+                const newEpoch = new Int32Array(nextCharCap);
+                newTs.set(this.wordCharTs);
+                newOk.set(this.wordCharOk);
+                newDirty.set(this.wordCharDirty);
+                newEpoch.set(this.wordCharEpoch);
+                this.wordCharTs = newTs;
+                this.wordCharOk = newOk;
+                this.wordCharDirty = newDirty;
+                this.wordCharEpoch = newEpoch;
+            }
+            const neededWin = unitLen * 3;
+            if (neededWin > this.wordWinErr.length) {
+                const nextWinCap = Math.max(neededWin + 64, this.wordWinErr.length * 2);
+                const newWin = new Uint8Array(nextWinCap);
+                newWin.set(this.wordWinErr);
+                this.wordWinErr = newWin;
+            }
         },
 
         resetWordBuffers() {
+            this.wordEpoch = 0;
             this.wordCharTs.fill(0);
             this.wordCharOk.fill(0);
             this.wordCharDirty.fill(0);
+            this.wordCharEpoch.fill(0);
+            this.wordWinErr.fill(0);
         },
 
-        evaluateWordNgrams(word) {
-            const quAsOne = !!this.data.quAsOneChar;
-            const units = tokenizeAtomicUnits(word, quAsOne);
-            const unitLen = units.length;
+        /**
+         * Evaluates all n-gram windows [a..b] (len 2..4) ending at newly completed atomic unit b.
+         * Supports any word length >= 2.
+         */
+        evaluateUnitWindowEnd(range, b) {
+            const unitLen = range.unitLen;
             if (unitLen < 2) return;
 
-            const starts = new Array(unitLen);
-            const ends = new Array(unitLen);
-            let charCursor = 0;
-            for (let u = 0; u < unitLen; u++) {
-                starts[u] = charCursor;
-                charCursor += units[u].length;
-                ends[u] = charCursor - 1;
-            }
-
+            const starts = range.starts;
+            const ends = range.ends;
+            const units = range.units;
             const ts = this.wordCharTs;
             const ok = this.wordCharOk;
             const dirty = this.wordCharDirty;
+            const epochs = this.wordCharEpoch;
+            const winErr = this.wordWinErr;
 
             for (let nLen = 2; nLen <= 4; nLen++) {
-                if (unitLen < nLen) break;
+                const a = b - nLen + 1;
+                if (a < 0) break;
 
-                for (let a = 0; a <= unitLen - nLen; a++) {
-                    const b = a + nLen - 1;
-                    const ngram = units.slice(a, b + 1).join('');
-                    if (!this.isAllowedPyramidNgram(ngram, nLen)) continue;
+                const ngram = units.slice(a, b + 1).join('');
+                if (!this.isAllowedPyramidNgram(ngram, nLen)) continue;
 
-                    // Anchor unit a: all chars must have charOk === 1;
-                    // For multi-char atomic anchor ('qu' in qu=1), internal char(s) > starts[a] must not be dirty.
-                    let anchorValid = true;
-                    for (let k = starts[a]; k <= ends[a]; k++) {
-                        if (ok[k] !== 1 || (k > starts[a] && dirty[k] !== 0)) {
-                            anchorValid = false;
-                            break;
-                        }
+                const slot = b * 3 + (nLen - 2);
+                const startC = starts[a];
+                const endC = ends[b];
+
+                let allOk = true;
+                for (let c = startC; c <= endC; c++) {
+                    if (ok[c] !== 1) {
+                        allOk = false;
+                        break;
                     }
+                }
 
-                    // Subsequent units [a+1 .. b]: every char must be clean (charOk === 1 && charDirty === 0)
-                    let tailClean = anchorValid;
-                    if (tailClean) {
-                        for (let u = a + 1; u <= b; u++) {
-                            for (let k = starts[u]; k <= ends[u]; k++) {
-                                if (ok[k] !== 1 || dirty[k] !== 0) {
-                                    tailClean = false;
-                                    break;
-                                }
+                if (!allOk) {
+                    this.stageNgramSample(ngram, nLen, 0, true);
+                    winErr[slot] = 1;
+                } else if (epochs[startC] === epochs[endC]) {
+                    const dt = ts[endC] - ts[startC];
+                    if (dt >= MIN_CLEAN_IKI_MS && dt <= MAX_CLEAN_IKI_MS) {
+                        this.stageNgramSample(ngram, nLen, Math.round(dt), false);
+                    }
+                } else {
+                    if (winErr[slot] === 0) {
+                        let anyNonAnchorDirty = false;
+                        for (let c = startC + 1; c <= endC; c++) {
+                            if (dirty[c] === 1) {
+                                anyNonAnchorDirty = true;
+                                break;
                             }
-                            if (!tailClean) break;
+                        }
+                        if (anyNonAnchorDirty) {
+                            this.stageNgramSample(ngram, nLen, 0, true);
+                            winErr[slot] = 1;
                         }
                     }
+                }
+            }
+        },
 
-                    if (tailClean) {
-                        const dt = ts[ends[b]] - ts[starts[a]];
-                        if (dt >= MIN_CLEAN_IKI_MS && dt <= MAX_CLEAN_IKI_MS) {
-                            this.stageNgramSample(ngram, nLen, Math.round(dt), false);
+        markIncompleteWordErrors(range, typedWordLen) {
+            if (!range || typedWordLen >= range.word.length || range.unitLen < 2) return;
+            for (let b = 0; b < range.unitLen; b++) {
+                if (range.ends[b] < typedWordLen) continue;
+                for (let nLen = 2; nLen <= 4; nLen++) {
+                    const a = b - nLen + 1;
+                    if (a < 0) break;
+                    const slot = b * 3 + (nLen - 2);
+                    if (this.wordWinErr[slot] === 0) {
+                        const ngram = range.units.slice(a, b + 1).join('');
+                        if (this.isAllowedPyramidNgram(ngram, nLen)) {
+                            this.stageNgramSample(ngram, nLen, 0, true);
+                            this.wordWinErr[slot] = 1;
                         }
-                    } else {
-                        // Error/Backspace inside n-gram: strictly 0 ms added to speed, counted as 1 error.
-                        this.stageNgramSample(ngram, nLen, 0, true);
                     }
                 }
             }
         },
 
         buildPhraseWordRanges(phrase) {
+            const quAsOne = !!this.data.quAsOneChar;
             const ranges = [];
             const words = phrase.split(' ');
             let cursor = 0;
@@ -1788,12 +1831,34 @@ const ngramTypeConfig = {
                 const isLast = (i === words.length - 1);
                 const boundary = isLast ? end : end + 1;
 
+                const units = tokenizeAtomicUnits(w, quAsOne);
+                const unitLen = units.length;
+                const starts = new Array(unitLen);
+                const ends = new Array(unitLen);
+                const endCharToUnit = new Int32Array(w.length);
+                endCharToUnit.fill(-1);
+
+                let cPos = 0;
+                for (let u = 0; u < unitLen; u++) {
+                    starts[u] = cPos;
+                    cPos += units[u].length;
+                    ends[u] = cPos - 1;
+                    if (ends[u] >= 0 && ends[u] < w.length) {
+                        endCharToUnit[ends[u]] = u;
+                    }
+                }
+
                 ranges.push({
                     word: w,
                     start,
                     end,
                     boundary,
-                    isLast
+                    isLast,
+                    units,
+                    unitLen,
+                    starts,
+                    ends,
+                    endCharToUnit
                 });
 
                 cursor = end + 1;
@@ -1890,15 +1955,15 @@ const ngramTypeConfig = {
             const ranges = this.phraseWordRanges;
             const targetRange = ranges[this.currentWordIdx];
 
-            // 1. Handle Backspace / deletion: mark deleted characters dirty and exclude from speed
+            // 1. Deletion / Backspace: increment epoch and clear charOk (do NOT modify charDirty)
             if (typedLen < this.lastInputLength) {
+                this.wordEpoch++;
                 if (targetRange) {
                     const wLen = targetRange.end - targetRange.start;
-                    this.ensureWordBufferCapacity(wLen);
+                    this.ensureWordBufferCapacity(wLen, targetRange.unitLen);
                     for (let p = typedLen; p < this.lastInputLength; p++) {
                         if (p >= targetRange.start && p < targetRange.end) {
                             const cIdx = p - targetRange.start;
-                            this.wordCharDirty[cIdx] = 1;
                             this.wordCharOk[cIdx] = 0;
                         }
                     }
@@ -1917,42 +1982,19 @@ const ngramTypeConfig = {
 
             this.resumeTimer();
 
-            // 2. Handle Mistype / Overshoot: taint affected char(s) in current word
-            if (!isPrefixValid) {
-                let mismatchIdx = 0;
-                const minL = Math.min(typedLen, expected.length);
-                while (mismatchIdx < minL && typed[mismatchIdx] === expected[mismatchIdx]) {
-                    mismatchIdx++;
+            if (isPrefixValid) {
+                this.hitsCorrect += addedChars;
+                if (this.data.soundCorrectLetterEnabled) {
+                    this.playSound(this.correctLetterSound);
                 }
-
-                if (targetRange) {
-                    const wLen = targetRange.end - targetRange.start;
-                    this.ensureWordBufferCapacity(wLen);
-                    const fromP = Math.max(prevLen, mismatchIdx);
-                    for (let p = fromP; p < typedLen; p++) {
-                        if (p >= targetRange.start && p < targetRange.end) {
-                            const cIdx = p - targetRange.start;
-                            this.wordCharDirty[cIdx] = 1;
-                            this.wordCharOk[cIdx] = 0;
-                        } else if (p >= targetRange.end && wLen > 0) {
-                            this.wordCharDirty[wLen - 1] = 1;
-                        }
-                    }
-                }
-
+            } else {
                 this.hitsWrong += addedChars;
                 if (this.data.soundIncorrectLetterEnabled) {
                     this.playSound(this.incorrectLetterSound);
                 }
-                return;
             }
 
-            // 3. Valid prefix extended: stamp per-character timing & evaluate completed word boundaries
-            this.hitsCorrect += addedChars;
-            if (this.data.soundCorrectLetterEnabled) {
-                this.playSound(this.correctLetterSound);
-            }
-
+            // 2. Unified forward typing pass across newly typed indices [prevLen .. typedLen - 1]
             for (let p = prevLen; p < typedLen; p++) {
                 const activeRange = ranges[this.currentWordIdx];
                 if (!activeRange) break;
@@ -1961,29 +2003,44 @@ const ngramTypeConfig = {
 
                 if (p >= activeRange.start && p < activeRange.end) {
                     const wLen = activeRange.end - activeRange.start;
-                    this.ensureWordBufferCapacity(wLen);
+                    this.ensureWordBufferCapacity(wLen, activeRange.unitLen);
                     const cIdx = p - activeRange.start;
+
                     this.wordCharTs[cIdx] = now;
-                    this.wordCharOk[cIdx] = 1;
-                } else if (p === activeRange.end && !activeRange.isLast) {
-                    this.evaluateWordNgrams(activeRange.word);
+                    this.wordCharEpoch[cIdx] = this.wordEpoch;
+
+                    if (typed[p] === expected[p]) {
+                        this.wordCharOk[cIdx] = 1;
+                    } else {
+                        this.wordCharOk[cIdx] = 0;
+                        this.wordCharDirty[cIdx] = 1;
+                    }
+
+                    const unitEndIdx = activeRange.endCharToUnit[cIdx];
+                    if (unitEndIdx !== -1) {
+                        this.evaluateUnitWindowEnd(activeRange, unitEndIdx);
+                    }
+                } else if (p === activeRange.end && !activeRange.isLast && isPrefixValid) {
+                    const typedWordLen = Math.min(activeRange.word.length, p - activeRange.start);
+                    this.markIncompleteWordErrors(activeRange, typedWordLen);
                     this.currentWordIdx++;
                     this.resetWordBuffers();
                 }
             }
 
-            while (this.currentWordIdx < ranges.length) {
-                const r = ranges[this.currentWordIdx];
-                if (r.isLast && typedLen >= r.boundary) {
-                    this.evaluateWordNgrams(r.word);
-                    this.currentWordIdx++;
-                    this.resetWordBuffers();
-                } else {
-                    break;
+            if (isPrefixValid) {
+                while (this.currentWordIdx < ranges.length) {
+                    const r = ranges[this.currentWordIdx];
+                    if (r.isLast && typedLen >= r.boundary) {
+                        this.currentWordIdx++;
+                        this.resetWordBuffers();
+                    } else {
+                        break;
+                    }
                 }
             }
 
-            // 4. Phrase completion check
+            // 3. Phrase completion check
             if (typed === expected) {
                 const elapsedSec = Math.max(0.2, (now - this.startTime) / 1000);
                 const totalHits = this.hitsCorrect + this.hitsWrong;
